@@ -125,7 +125,7 @@ async function submitAuth(){
     if(msg.toLowerCase().includes('verify your email')){
       pendingVerifyEmail = email;
       go('verify');
-      $('verifyText').textContent = 'Your account is not verified yet. We sent a new 6-digit code to ' + email + '. Enter it below — it expires in 10 minutes.';
+      $('verifyText').textContent = 'Your account is not verified yet. Enter the 6-digit code from your email (check inbox and spam), or tap Resend Code below — it expires in 10 minutes.';
       toast('Please verify your email first.');
     } else {
       showAuthError(msg);
