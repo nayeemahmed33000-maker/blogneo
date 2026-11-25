@@ -1,0 +1,26 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>BlogNeo — Connected</title>
+<link rel="stylesheet" href="styles.css">
+</head>
+<body>
+<main class="wrap" style="padding:40px 16px">
+  <div class="card">
+    <h2>BlogNeo — OAuth callback</h2>
+    <p id="msg">Checking the result…</p>
+    <p class="small muted">If you approved on Google / Pinterest, go back to BlogNeo → Connections and click “I connected — mark Connected”. If you saw an error, the owner’s Client ID / App ID may not be set up yet — see README.</p>
+    <a class="btn" href="index.html">← Back to BlogNeo</a>
+  </div>
+</main>
+<script>
+const q = new URLSearchParams(location.search);
+const el = document.getElementById('msg');
+if (q.get('code')) el.textContent = 'Success — an authorization code was received. Go back to BlogNeo → Connections and confirm the connection.';
+else if (q.get('error')) el.textContent = 'Authorization was not completed: ' + q.get('error') + '. Please try again from Connections.';
+else el.textContent = 'No authorization code in this URL. Please start again from BlogNeo → Connections.';
+</script>
+</body>
+</html>
