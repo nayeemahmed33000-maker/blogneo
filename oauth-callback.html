@@ -11,14 +11,14 @@
   <div class="card">
     <h2>BlogNeo — OAuth callback</h2>
     <p id="msg">Checking the result…</p>
-    <p class="small muted">If you approved on Google / Pinterest, go back to BlogNeo → Connections and click “I connected — mark Connected”. If you saw an error, the owner’s Client ID / App ID may not be set up yet — see README.</p>
+    <p class="small muted">In BlogNeo v2 the OAuth callback is handled by the BlogNeo API server, which redirects you back to the BlogNeo home page with the connection result. This page is kept only as a fallback landing page.</p>
     <a class="btn" href="index.html">← Back to BlogNeo</a>
   </div>
 </main>
 <script>
 const q = new URLSearchParams(location.search);
 const el = document.getElementById('msg');
-if (q.get('code')) el.textContent = 'Success — an authorization code was received. Go back to BlogNeo → Connections and confirm the connection.';
+if (q.get('code')) el.textContent = 'An authorization code was received, but this page is not the callback any more — please start again from BlogNeo → Connections (the API server handles the exchange).';
 else if (q.get('error')) el.textContent = 'Authorization was not completed: ' + q.get('error') + '. Please try again from Connections.';
 else el.textContent = 'No authorization code in this URL. Please start again from BlogNeo → Connections.';
 </script>
