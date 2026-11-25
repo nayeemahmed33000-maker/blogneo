@@ -1,96 +1,130 @@
 # BlogNeo — Your Blog, On Autopilot
 
-BlogNeo is a new, separate SaaS tool (not ContentPilot). A customer connects
-their Blogger blog and Pinterest account, picks a niche, and BlogNeo is built
-to generate one AI-style SEO article a day, generate images for it, publish
-it to Blogger automatically, and publish SEO-optimised pins to Pinterest
-automatically. The customer pays a subscription (Pro ৳499/month) for the
-daily auto flow.
+BlogNeo is a subscription SaaS: a customer connects their Blogger blog and
+Pinterest account, picks a niche, and BlogNeo generates one AI SEO article
+a day, generates a cover image, publishes it to Blogger automatically, and
+publishes SEO pins to Pinterest automatically. Pro costs ৳499/month (manual
+bKash/Nagad payment — no online checkout, Stripe/PayPal are unavailable
+from Bangladesh).
 
-Live URL (after Vercel deploy): https://blogneo.vercel.app
+Live site: https://blogneo.vercel.app
+API server: https://blogneo-api.nayeemahmed33000.workers.dev
+GitHub: https://github.com/nayeemahmed33000-maker/blogneo
+Backend source: ~/workspace/blogneo-api/src/index.js
+Deploy script: ~/workspace/blogneo-api/deploy.py
 
-## What is in this repo
+## v2 — what is REAL now (verified 2026-11-25)
+
+- **Real AI article** — POST /api/generate-article calls Cloudflare
+  Workers AI (free tier), model `@cf/meta/llama-3.3-70b-instruct-fp8-fast`.
+  Verified live: 1,061-word article with H1, linked table of contents,
+  4 H2 sections, FAQs, meta description and slug. The frontend uses the
+  template generator ONLY as a labelled offline fallback when the AI call
+  fails — never passed off as AI.
+- **Real AI cover image** — Workers AI `@cf/black-forest-labs/flux-1-schnell`.
+  Verified live: a real AI image came back with the article (278 KB base64).
+  If the image model fails, the frontend uses labelled canvas placeholders.
+- **Real AI pin copy** — POST /api/pins returns 5 AI pin concepts.
+  Verified live.
+- **D1 storage** — database `blogneo-db`: devices, connections, auto
+  settings, articles, runs, oauth_states. Dashboard stats, auto settings
+  and run log now come from the backend, not localStorage.
+- **Pro gating (server-side)** — the daily auto run and the manual
+  /api/cron/run-now run only for devices with plan='pro'. Free devices get
+  HTTP 403. Verified live.
+- **Daily auto flow (server code)** — the Worker's `scheduled()` handler
+  runs for every Pro device with Auto Flow ON: generate 1 real AI article
+  for the niche, publish to Blogger if connected, publish a pin if
+  Pinterest is connected, log the run in D1.
+- **Blogger OAuth + publish (code-complete)** — GET /api/blogger/auth,
+  GET /api/blogger/callback (code exchange, AES-GCM token storage,
+  blog detection), GET /api/blogger/blogs, POST /api/blogger/publish
+  (with token refresh). Same proven patterns as ContentPilot.
+- **Pinterest OAuth + publish (code-complete)** — GET /api/pinterest/auth,
+  GET /api/pinterest/callback, POST /api/pinterest/publish (media upload
+  then pin create, pins:write scope).
+
+## What is still BLOCKED — owner steps (nothing else is missing)
+
+### 1. Blogger — needs Google OAuth secrets (BLOCKER)
+The Worker reports `google_configured: false`. The ContentPilot Google
+OAuth client exists (Google Cloud project "ContentPilot", Blogger API
+enabled, OAuth app IN PRODUCTION), but its client ID/secret values cannot
+be read from the ContentPilot Worker — secrets are write-only. So the
+owner must supply them once, through the secure entry flow:
+- Secret names on Worker `blogneo-api`: `GOOGLE_CLIENT_ID`,
+  `GOOGLE_CLIENT_SECRET` (set with the Cloudflare API / dashboard).
+- In the SAME Google Cloud OAuth client, add this Authorized redirect URI:
+  `https://blogneo-api.nayeemahmed33000.workers.dev/api/blogger/callback`
+  (If the ContentPilot client cannot take another redirect URI, create a
+  new OAuth client in the same project and supply its ID/secret instead.)
+- After the secrets are set, test: open the BlogNeo Connections page and
+  click Connect Blogger — it must open Google's authorize page, and after
+  approval the Dashboard must show Blogger: Connected.
+
+### 2. Pinterest — needs a Pinterest app (BLOCKER, the one remaining app)
+No Pinterest App ID exists anywhere verifiable: the ContentPilot Worker
+has no Pinterest secrets, and no App ID is on file. Steps:
+- Create an app at Pinterest Developers, request the `pins:write` scope
+  (and `boards:read`, `pins:read`), wait for Pinterest approval.
+- Add this redirect URI in the Pinterest app:
+  `https://blogneo-api.nayeemahmed33000.workers.dev/api/pinterest/callback`
+- Set Worker secrets `PINTEREST_CLIENT_ID` and `PINTEREST_CLIENT_SECRET`
+  on Worker `blogneo-api`.
+- After that, Connect Pinterest in BlogNeo must open Pinterest's authorize
+  page and the Dashboard must show Pinterest: Connected.
+
+### 3. Daily Cron Trigger — dashboard step (API currently rejects it)
+The Worker code has the `scheduled()` handler ready, but the Cloudflare
+schedules PUT endpoint currently rejects every body shape with error
+10026 (verified 2026-11-25 on blogneo-api AND on contentpilot, whose
+working schedule was set on 2026-11-14 — the endpoint changed since).
+Until the trigger is set, the daily run can be started manually from the
+BlogNeo Daily Auto Flow page ("Run Now", Pro only) — it runs the exact
+same server code path. Dashboard step: Cloudflare dashboard → Workers &
+Pages → blogneo-api → Settings → Triggers → Add Cron Trigger:
+`0 2 * * *` (02:00 UTC = 08:00 Asia/Dhaka).
+
+### 4. Pro activation — manual, as designed
+A customer marks "I paid" → plan becomes `pro-pending` in D1. The owner
+activates Pro after confirming the bKash/Nagad payment by running a D1
+update on database `blogneo-db` (uuid in deploy.py / Cloudflare dashboard):
+`UPDATE devices SET plan='pro' WHERE device_id='<the customer device id>'`
+(List pro-pending devices with
+`SELECT device_id, email FROM devices WHERE plan='pro-pending'`.)
+
+## Notes
+
+- **Model change (2026-11-25):** `@cf/meta/llama-3.1-8b-instruct-fp8`
+  was deprecated by Cloudflare on 2026-11-20 (API error 5028). BlogNeo
+  uses `@cf/meta/llama-3.3-70b-instruct-fp8-fast` instead. ContentPilot
+  still uses the deprecated model — its AI generation is very likely
+  broken the same way now; that is a separate fix, not done here.
+- **Word counts vary:** verified articles came back at 1,061 words and
+  at 3,180 words for the same prompt shape — the 70B model sometimes
+  overshoots the 1,000–1,600 target. Generation takes 20–70 seconds.
+- **Workers AI free tier:** no key, no payment. If the free allowance is
+  ever exhausted, /api/generate-article returns an error and the frontend
+  falls back to the labelled offline template.
+- **No secrets in this repo.** OAuth client IDs/secrets and the token
+  encryption key live only as Cloudflare Worker secrets on `blogneo-api`.
+  `TOKEN_ENCRYPTION_KEY` was generated during deploy and is not stored
+  anywhere in files.
+
+## Frontend files
 
 - `index.html` — single-page app: Landing, Dashboard, Article Writer,
   Pin Generator, Connections, Daily Auto Flow, Subscription
 - `styles.css` — dark green + gold theme, responsive, mobile-first
-- `app.js` — all client-side logic, localStorage demo state, article
-  generator, canvas images, pin generator, auto-flow log
+- `app.js` — calls the BlogNeo API; device UUID per browser
+  (`X-BlogNeo-Device` header); template article generator is the labelled
+  offline fallback only
 - `vercel.json` — static site config, no build step
-- `oauth-callback.html` — simple page shown after an OAuth redirect;
-  it reads the `code` / `error` from the URL and tells the user to go back
-  to BlogNeo Connections and confirm the connection
+- `oauth-callback.html` — legacy landing page; v2 OAuth callbacks go to
+  the API Worker, which redirects back to the site with ?connected=...
 
-## Vercel deploy (no build step)
+## Vercel deploy
 
-1. Push this folder to a new GitHub repo (for example `blogneo`).
-2. In Vercel (account `nayeemahmed33000` — the 33000 account, not 200001):
-   Add New Project → Import the GitHub repo.
-3. Framework Preset: **Other** (static site).
-4. Build Command: leave empty / none. Output Directory: `.` (root).
-5. Project name: `blogneo` → live at https://blogneo.vercel.app
-6. Deploy. No environment variables, no secrets, no API keys are needed
-   for this MVP — everything demo runs in the browser.
-
-## Demo vs real — read this before selling
-
-This MVP is honest about what works in the browser and what needs the
-owner's OAuth apps:
-
-**Works now (demo, in the browser, no server):**
-- Full UI, all tabs, all buttons do something visible.
-- Article Writer generates a real structured SEO article from the topic
-  (H1, intro, 4 sections, tips, FAQ, meta description, slug) — generated
-  client-side from templates, not from a paid AI API.
-- 3 article images are generated on canvas / SVG with the topic text and
-  are clearly labelled as generated images.
-- Pin Generator makes 3 Pinterest pin designs (1000×1500 canvas),
-  SEO title + description + hashtags, board picker.
-- Daily Auto Flow (demo): toggle ON, pick a time, "Run Now (demo)"
-  generates + publishes one article + pin in the demo and writes a run log.
-- Subscription: Free vs Pro ৳499/month, manual bKash/Nagad instructions,
-  "I paid" marks Pro as Pending in localStorage.
-
-**Demo only — says so in the UI:**
-- "Publish to Blogger" and "Publish to Pinterest" when not connected say:
-  "Demo — connect Blogger/Pinterest in Connections to publish for real."
-- Connected state in this MVP is stored in localStorage after the user
-  confirms; there is no server, no database, and no real Blogger /
-  Pinterest API call yet.
-
-## The 2 owner steps still needed for REAL auto-publish
-
-Do NOT invent client IDs. The owner must do these two things; until then
-real publishing cannot work for customers:
-
-### 1. Google OAuth Client ID — for Blogger API
-- In Google Cloud Console, under the owner's Google account, create an
-  OAuth 2.0 Client ID (Web application).
-- Add Authorized redirect URI: `https://blogneo.vercel.app/oauth-callback.html`
-- Paste that Client ID into BlogNeo → Connections → Owner Settings
-  ("Google Client ID"). BlogNeo then builds the real Blogger authorize URL:
-  `https://accounts.google.com/o/oauth2/v2/auth` with scope
-  `https://www.googleapis.com/auth/blogger`.
-- A server / Worker endpoint is still needed later to exchange the OAuth
-  code for a token and to call the Blogger API to insert posts. That is
-  not in this static MVP.
-
-### 2. Pinterest App ID + approval — for Pinterest API
-- In Pinterest Developers, create an app and get its App ID (Client ID).
-- Add Redirect URI: `https://blogneo.vercel.app/oauth-callback.html`
-- Paste that App ID into BlogNeo → Connections → Owner Settings
-  ("Pinterest App ID"). BlogNeo then builds the real Pinterest authorize URL:
-  `https://www.pinterest.com/oauth/` with scopes for pins and boards.
-- Pinterest must approve the app for the `pins:write` scope before
-  customers can auto-publish pins for real. A server endpoint is still
-  needed later to exchange the code and call the Pinterest API.
-
-No bKash/Nagad number is printed anywhere in the app — none is on file.
-Payment is manual: customer pays ৳499, sends screenshot + BlogNeo email
-to nayeemahmed33000@gmail.com, Pro is activated within 24h.
-
-## Pricing (as ordered)
-
-- Free: 1 blog, 3 articles/month, manual pins, no daily auto flow.
-- Pro ৳499/month: unlimited blogs, daily auto article, auto pins,
-  auto Blogger + Pinterest publish (once the 2 owner steps above are done).
+Push this folder to GitHub repo `nayeemahmed33000-maker/blogneo` (the
+Vercel project `blogneo` is already connected to it and auto-deploys).
+Framework Preset: Other (static). No build command, no env vars.
