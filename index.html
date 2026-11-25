@@ -20,10 +20,59 @@
       <button data-page="autoflow">Daily Auto Flow</button>
       <button data-page="subscription">Subscription</button>
     </nav>
+    <div class="auth-area" id="authArea">
+      <span class="auth-email" id="authEmail" style="display:none"></span>
+      <button class="btn small" id="btnLoginNav" onclick="go('login')">Login</button>
+      <button class="btn small ghost" id="btnLogoutNav" style="display:none" onclick="logout()">Logout</button>
+    </div>
   </div>
 </header>
 
 <main class="wrap">
+
+<!-- LOGIN — fast login, first screen when logged out -->
+<section class="page" id="page-login">
+  <div class="login-card">
+    <div class="login-logo">Blog<span>Neo</span></div>
+    <p class="login-tag">Your Blog, On Autopilot</p>
+    <button class="btn google-btn" onclick="loginWithGoogle()">
+      <span class="g-logo">G</span> Continue with Google
+    </button>
+    <p class="small muted" id="googleNote">1 tap — fastest login. Uses your Google account.</p>
+    <div class="divider"><span>or</span></div>
+    <h3 id="authTitle" style="margin:4px 0 2px">Log in to BlogNeo</h3>
+    <p class="small muted" id="authSub">Fast login — email + password, no waiting.</p>
+    <label for="authName" id="authNameLabel" style="display:none">Your name</label>
+    <input id="authName" placeholder="Your name" style="display:none" autocomplete="name">
+    <label for="authEmailInput">Email</label>
+    <input id="authEmailInput" type="email" placeholder="you@example.com" autocomplete="email">
+    <label for="authPassword">Password</label>
+    <input id="authPassword" type="password" placeholder="At least 6 characters" autocomplete="current-password">
+    <p class="small" id="authError" style="color:#c0392b;display:none"></p>
+    <button class="btn" id="authSubmit" style="width:100%;margin-top:14px" onclick="submitAuth()">Login</button>
+    <label class="remember"><input type="checkbox" id="rememberMe" checked> Remember me</label>
+    <p class="small" style="margin-top:12px"><a href="#" onclick="toggleAuthMode();return false;" id="authToggleLink">No account yet? Create one — it's free</a></p>
+    <p class="small muted"><a href="#" onclick="continueAsGuest();return false;">Continue as guest (demo)</a> — your work is saved only in this browser.</p>
+  </div>
+</section>
+
+<!-- EMAIL VERIFICATION -->
+<section class="page" id="page-verify">
+  <div class="login-card">
+    <div class="login-logo">Blog<span>Neo</span></div>
+    <h3 style="margin:6px 0 2px">Check your email</h3>
+    <p class="small muted" id="verifyText">We sent a 6-digit code to your email. Enter it below — it expires in 10 minutes.</p>
+    <label for="verifyCode">6-digit code</label>
+    <input id="verifyCode" inputmode="numeric" maxlength="6" placeholder="••••••" autocomplete="one-time-code" style="letter-spacing:8px;font-size:22px;text-align:center">
+    <p class="small" id="verifyError" style="color:#c0392b;display:none"></p>
+    <button class="btn" style="width:100%;margin-top:14px" onclick="submitVerify()">Verify &amp; Log In</button>
+    <div class="row" style="margin-top:12px">
+      <button class="btn ghost small" onclick="resendCode()" id="resendBtn">Resend Code</button>
+      <button class="btn ghost small" onclick="go('login')">Back to Login</button>
+    </div>
+    <p class="small muted" id="verifyNote">3 attempts max per code. Didn't get it? Check spam, then tap Resend.</p>
+  </div>
+</section>
 
 <!-- LANDING -->
 <section class="page active" id="page-landing">
@@ -68,6 +117,7 @@
 <!-- DASHBOARD -->
 <section class="page" id="page-dashboard">
   <h2>Dashboard</h2><p>Your BlogNeo at a glance.</p>
+  <div class="guest-banner" id="guestBanner" style="display:none">Guest demo — your work is saved only in this browser. <a href="#" onclick="go('login');return false;">Log in</a> to save it to your account.</div>
   <div class="grid g4">
     <div class="card"><div class="muted small">Articles Published</div><div class="big" id="statArticles">0</div></div>
     <div class="card"><div class="muted small">Pins Published</div><div class="big" id="statPins">0</div></div>
