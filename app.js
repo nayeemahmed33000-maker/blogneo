@@ -14,13 +14,40 @@ function deviceId(){
   return d;
 }
 async function api(path, opts){
-  const res = await fetch(API + path, {
-    ...(opts || {}),
-    headers: { 'Content-Type': 'application/json', 'X-BlogNeo-Device': deviceId(), ...((opts && opts.headers) || {}) },
-  });
+  const headers = { 'Content-Type': 'application/json', 'X-BlogNeo-Device': deviceId(), ...((opts && opts.headers) || {}) };
+  const token = getToken();
+  if (token) headers['Authorization'] = 'Bearer ' + token;
+  const res = await fetch(API + path, { ...(opts || {}), headers });
   const data = await res.json().catch(() => ({}));
   if(!res.ok) throw new Error(data.error || ('Request failed (' + res.status + ')'));
   return data;
+}
+// ---------- Fast login: session token (localStorage when Remember Me, else sessionStorage) ----------
+const TOKEN_KEY = 'blogneo_token', EMAIL_KEY = 'blogneo_email', GUEST_KEY = 'blogneo_guest';
+function getToken(){ return localStorage.getItem(TOKEN_KEY) || sessionStorage.getItem(TOKEN_KEY) || ''; }
+function getEmail(){ return localStorage.getItem(EMAIL_KEY) || sessionStorage.getItem(EMAIL_KEY) || ''; }
+function setSession(token, email, remember){
+  clearSession();
+  const store = remember ? localStorage : sessionStorage;
+  if (token) store.setItem(TOKEN_KEY, token);
+  if (email) store.setItem(EMAIL_KEY, email);
+}
+function clearSession(){
+  localStorage.removeItem(TOKEN_KEY); sessionStorage.removeItem(TOKEN_KEY);
+  localStorage.removeItem(EMAIL_KEY); sessionStorage.removeItem(EMAIL_KEY);
+  localStorage.removeItem(GUEST_KEY);
+}
+function isGuest(){ return localStorage.getItem(GUEST_KEY) === '1'; }
+function isAuthed(){ return !!getToken(); }
+function renderAuthUI(){
+  const email = getEmail();
+  const authed = isAuthed();
+  $('authEmail').style.display = authed && email ? '' : 'none';
+  $('authEmail').textContent = authed ? email : '';
+  $('btnLoginNav').style.display = authed ? 'none' : '';
+  $('btnLogoutNav').style.display = authed ? '' : 'none';
+  const gb = $('guestBanner');
+  if (gb) gb.style.display = (!authed && isGuest()) ? '' : 'none';
 }
 let state = {blogger:false, pinterest:false, plan:'free', autoOn:false, autoTime:'08:00', autoNiche:'Cozy home decor', articles:0, pins:0, log:[], latest:''};
 try { const s = JSON.parse(localStorage.getItem(KEY) || '{}'); state = {...state, ...s}; } catch(e) {}
@@ -37,13 +64,123 @@ function esc(s){ return String(s).replace(/[&<>"]/g, c=>({'&':'&amp;','<':'&lt;'
 function slugify(s){ return s.toLowerCase().replace(/[^a-z0-9]+/g,'-').replace(/^-|-$/g,'').slice(0,70) || 'blogneo-article'; }
 
 // ---------- Navigation ----------
+// Login is the first screen when logged out. Dashboard, Writer, Pins,
+// Connections and Auto Flow need a login or guest mode.
+const PROTECTED_PAGES = ['dashboard','writer','pins','connections','autoflow'];
 function go(page){
+  if(PROTECTED_PAGES.includes(page) && !isAuthed() && !isGuest()){
+    page = 'login';
+    toast('Please log in first — it takes 10 seconds. Or continue as guest (demo).');
+  }
   document.querySelectorAll('.page').forEach(p=>p.classList.remove('active'));
   const el=$('page-'+page); if(el) el.classList.add('active');
   document.querySelectorAll('#nav button').forEach(b=>b.classList.toggle('active', b.dataset.page===page));
   if(page==='dashboard') renderDashboard();
   if(page==='autoflow') loadAutoFlow();
+  renderAuthUI();
   window.scrollTo({top:0, behavior:'smooth'});
+}
+
+// ---------- Fast login ----------
+let authMode = 'login'; // 'login' | 'signup'
+let pendingVerifyEmail = '';
+function toggleAuthMode(){
+  authMode = authMode === 'login' ? 'signup' : 'login';
+  $('authTitle').textContent = authMode === 'login' ? 'Log in to BlogNeo' : 'Create your BlogNeo account';
+  $('authSub').textContent = authMode === 'login' ? 'Fast login — email + password, no waiting.' : 'Free to start — verify your email, then log in.';
+  $('authSubmit').textContent = authMode === 'login' ? 'Login' : 'Create Account';
+  $('authToggleLink').textContent = authMode === 'login' ? "No account yet? Create one — it's free" : 'Already have an account? Log in';
+  const show = authMode === 'signup';
+  $('authName').style.display = show ? '' : 'none';
+  $('authNameLabel').style.display = show ? '' : 'none';
+  $('authPassword').autocomplete = show ? 'new-password' : 'current-password';
+  $('authError').style.display = 'none';
+}
+function showAuthError(msg){ const e=$('authError'); e.textContent=msg; e.style.display=''; }
+async function submitAuth(){
+  const email = $('authEmailInput').value.trim().toLowerCase();
+  const password = $('authPassword').value;
+  const remember = $('rememberMe').checked;
+  if(!email || !password){ showAuthError('Enter your email and password.'); return; }
+  const btn = $('authSubmit'); btn.disabled = true; btn.textContent = 'Please wait…';
+  try{
+    if(authMode === 'signup'){
+      const r = await api('/api/auth/signup', {method:'POST', body: JSON.stringify({email, password, name: $('authName').value.trim() || undefined})});
+      pendingVerifyEmail = r.email || email;
+      go('verify');
+      $('verifyText').textContent = 'We sent a 6-digit code to ' + pendingVerifyEmail + '. Enter it below — it expires in 10 minutes.' + (r.email_sent ? '' : ' (Warning: ' + (r.email_error || 'the email may not have sent') + ')');
+      toast('Account created — check your email for the 6-digit code.');
+      log('Signed up: ' + pendingVerifyEmail + ' (verification pending)');
+    } else {
+      const r = await api('/api/auth/login', {method:'POST', body: JSON.stringify({email, password})});
+      setSession(r.token, r.email, remember);
+      localStorage.removeItem(GUEST_KEY);
+      renderAuthUI(); refreshStatus();
+      toast('Welcome back, ' + r.email + '!');
+      log('Logged in: ' + r.email);
+      go('dashboard');
+    }
+  }catch(e){
+    const msg = e.message || 'Login failed.';
+    if(msg.toLowerCase().includes('verify your email')){
+      pendingVerifyEmail = email;
+      go('verify');
+      $('verifyText').textContent = 'Your account is not verified yet. We sent a new 6-digit code to ' + email + '. Enter it below — it expires in 10 minutes.';
+      toast('Please verify your email first.');
+    } else {
+      showAuthError(msg);
+    }
+  }finally{ btn.disabled = false; btn.textContent = authMode === 'login' ? 'Login' : 'Create Account'; }
+}
+async function loginWithGoogle(){
+  try{
+    const s = await api('/api/auth/google/status');
+    if(!s.configured){
+      toast('Google sign-in is not configured yet. The owner still has to add the Google Client ID and Secret on the BlogNeo server. Please log in with email instead.');
+      $('googleNote').textContent = 'Google sign-in is not configured yet — use email login below.';
+      return;
+    }
+    location.href = s.auth_url;
+  }catch(e){ toast('Google sign-in check failed: ' + e.message); }
+}
+function continueAsGuest(){
+  localStorage.setItem(GUEST_KEY, '1');
+  renderAuthUI();
+  toast('Guest demo — your work is saved only in this browser.');
+  log('Continued as guest (demo).');
+  go('dashboard');
+}
+async function logout(){
+  try{ await api('/api/auth/logout', {method:'POST', body: '{}'}); }catch(e){ /* session already gone */ }
+  clearSession();
+  renderAuthUI();
+  toast('Logged out.');
+  go('login');
+}
+// ---------- Email verification ----------
+function showVerifyError(msg){ const e=$('verifyError'); e.textContent=msg; e.style.display=''; }
+async function submitVerify(){
+  const code = $('verifyCode').value.trim();
+  if(!/^\d{6}$/.test(code)){ showVerifyError('Enter the 6-digit code from your email.'); return; }
+  try{
+    const r = await api('/api/auth/verify', {method:'POST', body: JSON.stringify({email: pendingVerifyEmail, code})});
+    setSession(r.token, r.email, true);
+    localStorage.removeItem(GUEST_KEY);
+    renderAuthUI(); refreshStatus();
+    toast('Email verified — welcome to BlogNeo, ' + r.email + '!');
+    log('Email verified: ' + r.email);
+    go('dashboard');
+  }catch(e){ showVerifyError(e.message || 'Verification failed.'); }
+}
+async function resendCode(){
+  if(!pendingVerifyEmail){ toast('Sign up or log in first so we know which email to send to.'); go('login'); return; }
+  const btn = $('resendBtn'); btn.disabled = true; btn.textContent = 'Sending…';
+  try{
+    const r = await api('/api/auth/send-code', {method:'POST', body: JSON.stringify({email: pendingVerifyEmail})});
+    if(r.email_sent){ toast('New code sent to ' + pendingVerifyEmail + '. Check your inbox (and spam).'); $('verifyNote').textContent = 'New code sent — it expires in 10 minutes. 3 attempts max per code.'; }
+    else { toast('Could not send the email: ' + (r.error || 'sending failed') + '. Try again in a minute.'); }
+  }catch(e){ toast('Resend failed: ' + e.message); }
+  finally{ btn.disabled = false; btn.textContent = 'Resend Code'; }
 }
 document.querySelectorAll('#nav button').forEach(b=>b.addEventListener('click', ()=>go(b.dataset.page)));
 
@@ -284,7 +421,7 @@ function chooseFree(){ state.plan='free'; save(); renderBadges(); renderDashboar
 function showProPay(){ $('payBox').style.display='block'; $('payBox').scrollIntoView({behavior:'smooth'}); }
 async function markPaid(){
   try{
-    await api('/api/plan/paid', {method:'POST', body: JSON.stringify({email: ''})});
+    await api('/api/plan/paid', {method:'POST', body: JSON.stringify({email: getEmail()})});
     state.plan='pro-pending'; save(); renderBadges(); renderDashboard();
     toast('Marked as Paid — Pro activates within 24h after confirmation.');
     log('Pro payment marked as paid (pending activation).');
@@ -292,11 +429,41 @@ async function markPaid(){
 }
 
 // ---------- Init ----------
+async function initAuth(){
+  const q = new URLSearchParams(location.search);
+  // Google sign-in returns here with a session token in the URL.
+  if(q.get('auth_token')){
+    setSession(q.get('auth_token'), q.get('auth_email') || '', true);
+    history.replaceState({}, '', location.pathname);
+    toast('Signed in with Google — welcome!');
+  }
+  if(q.get('auth_error')){ toast('Google sign-in failed: ' + q.get('auth_error')); history.replaceState({}, '', location.pathname); }
+  if(isAuthed()){
+    try{
+      const me = await api('/api/auth/me');
+      state.plan = me.plan || state.plan;
+      renderAuthUI();
+      refreshStatus(); loadAutoFlow(); renderBadges(); renderDashboard(); renderAuto(); renderLog();
+      go('dashboard');
+      return;
+    }catch(e){ clearSession(); } // bad/expired token — fall through to login screen
+  }
+  renderAuthUI(); renderBadges(); renderDashboard(); renderAuto(); renderLog();
+  if(isGuest()){ go('dashboard'); }
+  else {
+    // Fast login is the first screen when logged out.
+    document.querySelectorAll('.page').forEach(p=>p.classList.remove('active'));
+    $('page-login').classList.add('active');
+    renderAuthUI();
+  }
+}
 (function init(){
   const q = new URLSearchParams(location.search);
   if(q.get('connected')==='blogger' && q.get('ok')){ toast('Blogger connected successfully!'); log('Blogger connected via OAuth.'); }
   if(q.get('connected')==='pinterest' && q.get('ok')){ toast('Pinterest connected successfully!'); log('Pinterest connected via OAuth.'); }
   if(q.get('error')){ toast('Connection failed: '+q.get('error')); }
-  history.replaceState({}, '', location.pathname);
-  refreshStatus(); loadAutoFlow(); renderBadges(); renderDashboard(); renderAuto(); renderLog();
+  // NOTE: do NOT strip the URL here — initAuth() needs ?auth_token= from
+  // the Google sign-in callback. initAuth strips it after reading.
+  if(!q.get('auth_token') && !q.get('auth_error')) history.replaceState({}, '', location.pathname);
+  initAuth();
 })();
