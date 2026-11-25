@@ -75,6 +75,25 @@ input:focus,select:focus,textarea:focus{outline:2px solid var(--gold);outline-of
 .check{list-style:none;padding:0;margin:10px 0}
 .check li{padding:5px 0;color:var(--muted)}
 .check li:before{content:"✓ ";color:var(--green2);font-weight:900}
+.auth-area{display:flex;gap:8px;align-items:center;margin-left:8px}
+.auth-email{font-size:13px;font-weight:700;color:var(--gold2);max-width:180px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.login-card{max-width:420px;margin:30px auto;background:#f7f3e8;color:#12261c;border-radius:20px;padding:28px 26px;box-shadow:0 14px 40px rgba(0,0,0,.45)}
+.login-card h3{color:#12261c}
+.login-card .muted{color:#5a6b60}
+.login-card label{color:#12261c}
+.login-card input{background:#fff;border:1px solid #d8cfae;color:#12261c}
+.login-card input:focus{outline:2px solid var(--gold)}
+.login-logo{font-weight:900;font-size:34px;letter-spacing:.3px;text-align:center}
+.login-logo span{color:#a8842a}
+.login-tag{text-align:center;color:#5a6b60;margin:2px 0 18px;font-weight:600}
+.google-btn{width:100%;background:#fff;color:#1f2937;border:1px solid #d8cfae;display:flex;align-items:center;justify-content:center;gap:10px}
+.google-btn:hover{background:#f0ead2}
+.g-logo{display:inline-flex;align-items:center;justify-content:center;width:24px;height:24px;border-radius:50%;background:#4285f4;color:#fff;font-weight:900;font-size:15px}
+.divider{display:flex;align-items:center;gap:10px;margin:18px 0 6px;color:#8a9a8f;font-size:13px;font-weight:700}
+.divider:before,.divider:after{content:"";flex:1;height:1px;background:#d8cfae}
+.remember{display:flex;align-items:center;gap:8px;margin-top:14px;font-weight:600;font-size:13px;color:#12261c}
+.remember input{width:auto;accent-color:#a8842a}
+.guest-banner{background:#3a2f10;border:1px solid var(--gold);color:var(--gold2);border-radius:12px;padding:10px 14px;margin:14px 0;font-size:13px;font-weight:700}
 footer{border-top:1px solid var(--line);padding:22px 0 34px;color:var(--muted);font-size:13px}
 details{background:#08170f;border:1px solid var(--line);border-radius:12px;padding:12px 14px;margin-top:12px}
 details summary{cursor:pointer;font-weight:800}
