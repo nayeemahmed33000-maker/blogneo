@@ -13,6 +13,45 @@ GitHub: https://github.com/nayeemahmed33000-maker/blogneo
 Backend source: ~/workspace/blogneo-api/src/index.js
 Deploy script: ~/workspace/blogneo-api/deploy.py
 
+## v3 — Fast Login + Mail Verification (2026-11-25)
+
+- **Fast login (frontend first screen)** — clean light login card:
+  big BlogNeo logo, "Continue with Google" (1 tap), divider, Email +
+  Password, Login / Create Account toggle, Remember Me (checked by
+  default), "Continue as guest (demo)". Top nav shows Login when logged
+  out, the user's email + Logout when logged in. After login → Dashboard.
+  No page reload, no heavy images.
+- **Backend auth** — POST /api/auth/signup, POST /api/auth/login,
+  GET /api/auth/me, POST /api/auth/logout. Users table in D1 (email
+  unique, salted SHA-256 password hash via WebCrypto — NEVER plain text),
+  sessions table (token stored hashed, 30-day expiry). Login returns a
+  Bearer session token; the device is linked to the account (devices
+  table gets email + user_id + plan) so articles/runs/auto-settings
+  follow the account. Guest demo still works, labelled "Guest demo —
+  your work is saved only in this browser".
+- **Mail verification** — signup does NOT activate the account.
+  POST /api/auth/send-code and POST /api/auth/verify: 6-digit code,
+  stored only as a SHA-256 hash, 10-minute expiry, 3 attempts max.
+  Login with an unverified account returns 403 "Please verify your
+  email first" and re-sends the code. After verification the user is
+  auto-logged in. Sending uses MailChannels (Cloudflare Workers free
+  email sending, no API key) — see sending status below.
+- **Continue with Google** — GET /api/auth/google/status,
+  GET /api/auth/google, GET /api/auth/google/callback (reuses the
+  Blogger Google OAuth client, openid/email/profile scopes). Returns
+  an honest 503 "Google sign-in is not configured yet" until
+  GOOGLE_CLIENT_ID/SECRET are set — never faked.
+
+## MailChannels sending status (verify live — see below)
+
+MailChannels from a Worker needs the sender domain to be accepted by
+MailChannels. The sender used is `verify@blogneo.vercel.app`. If test
+sends are rejected (non-2xx), the owner step is: put the BlogNeo
+sending domain on Cloudflare (or verify it in MailChannels) and update
+the `from` address in the Worker — no API key is needed for MailChannels
+itself. Signup/verify endpoints and UI work regardless; only the
+delivery of the code email depends on this.
+
 ## v2 — what is REAL now (verified 2026-11-25)
 
 - **Real AI article** — POST /api/generate-article calls Cloudflare
