@@ -42,15 +42,23 @@ Deploy script: ~/workspace/blogneo-api/deploy.py
   an honest 503 "Google sign-in is not configured yet" until
   GOOGLE_CLIENT_ID/SECRET are set — never faked.
 
-## MailChannels sending status (verify live — see below)
+## Email sending status — VERIFIED LIVE 2026-11-25 (BLOCKED, owner step)
 
-MailChannels from a Worker needs the sender domain to be accepted by
-MailChannels. The sender used is `verify@blogneo.vercel.app`. If test
-sends are rejected (non-2xx), the owner step is: put the BlogNeo
-sending domain on Cloudflare (or verify it in MailChannels) and update
-the `from` address in the Worker — no API key is needed for MailChannels
-itself. Signup/verify endpoints and UI work regardless; only the
-delivery of the code email depends on this.
+- **MailChannels (free, no key): BLOCKED.** Live test from the Worker
+  returns `401 Authorization Required` (same from a shell test).
+  MailChannels now needs a DKIM-verified sending domain; BlogNeo has no
+  custom domain on Cloudflare, so the unauthenticated path is closed.
+  The signup/login/verify endpoints and UI are complete and honest
+  about this — they never claim a code "was sent" when it was not.
+- **Owner step (free, ~5 min): Resend.** Create a free Resend account
+  (100 emails/day, no card), copy the API key, set it as Worker secret
+  `RESEND_API_KEY` on `blogneo-api`. The Worker then sends via Resend
+  from `onboarding@resend.dev` (no domain verification needed on the
+  free tier). No code change needed — the Worker checks for the secret
+  first and falls back to MailChannels only when it is absent.
+- Until the key is set, a new user can sign up but cannot receive the
+  code by email, so they cannot verify or log in. That is the one
+  remaining login blocker.
 
 ## v2 — what is REAL now (verified 2026-11-25)
 
