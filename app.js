@@ -427,12 +427,6 @@ async function selectBlog(){
     btn.disabled = false; btn.textContent = 'Save Blog';
   }
 }
-// Owner Settings are now informational only — OAuth Client IDs live as
-// Worker secrets on the backend, never in the browser. Kept for backwards
-// compatibility with the v1 fields if present.
-function saveOwnerIds(){ toast('Owner IDs are now stored as Worker secrets on the backend — nothing to save in the browser. See README for the owner steps.'); }
-function clearOwnerIds(){ const g=$('googleId'), p=$('pinId'); if(g) g.value=''; if(p) p.value=''; toast('Cleared.'); }
-
 // ---------- Daily Auto Flow (backend settings + real runs) ----------
 async function loadAutoFlow(){
   try{
