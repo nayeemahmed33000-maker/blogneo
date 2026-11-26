@@ -153,16 +153,16 @@
     <div class="card"><h3><svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M22 2L11 13"/><path d="M22 2l-7 20-4-9-9-4z"/></svg>Auto Blogger Publish</h3><p>Articles publish straight to your connected Blogger blog. No copy-paste.</p></div>
     <div class="card"><h3><svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 10c0 7-9 12-9 12s-9-5-9-12a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/></svg>Auto Pinterest SEO + Publish</h3><p>3 pin designs per article, with SEO title, description, hashtags and board — published to Pinterest.</p></div>
     <div class="card"><h3><svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/></svg>Daily Auto Flow</h3><p>Set a niche and a time once. BlogNeo runs every day at that time.</p></div>
-    <div class="card"><h3><svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="1" y="4" width="22" height="16" rx="2"/><line x1="1" y1="10" x2="23" y2="10"/></svg>Subscription</h3><p>Free to try. Pro ৳499/month unlocks unlimited blogs and the daily auto flow.</p></div>
+    <div class="card"><h3><svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="1" y="4" width="22" height="16" rx="2"/><line x1="1" y1="10" x2="23" y2="10"/></svg>Subscription</h3><p>Free to try. Pro ৳499/month unlocks 5 blogs, 5 Pinterest accounts and the daily auto flow.</p></div>
   </div>
 
   <h2 style="margin-top:34px">Simple pricing</h2>
   <div class="grid g2">
     <div class="card"><h3>Free</h3><div class="price">৳0<small> / month</small></div>
-      <ul class="check"><li>1 Blogger blog</li><li>3 articles / month</li><li>Manual pins</li><li>No daily auto flow</li></ul>
+      <ul class="check"><li>1 blog — 5 articles / day</li><li>1 Pinterest account — 3 pins / day</li><li>Manual pins</li><li>No daily auto flow</li></ul>
       <button class="btn ghost" onclick="go('subscription')">Start Free</button></div>
     <div class="card" style="border-color:var(--gold)"><h3>Pro <span class="badge demo">Most popular</span></h3><div class="price">৳499<small> / month</small></div>
-      <ul class="check"><li>Unlimited blogs</li><li>Daily auto article</li><li>Auto pins — Pinterest SEO + publish</li><li>Auto Blogger publish</li></ul>
+      <ul class="check"><li>5 blogs — 10 articles / day each</li><li>5 Pinterest accounts — 6 pins / day each</li><li>Daily auto article</li><li>Auto pins — Pinterest SEO + publish</li><li>Auto Blogger publish</li></ul>
       <button class="btn" onclick="go('subscription')">Upgrade to Pro</button></div>
   </div>
 
@@ -201,6 +201,10 @@
     <div><label for="lang">Language</label><select id="lang"><option>English</option><option>Bangla (English script)</option></select></div>
     <div><label for="words">Word count</label><select id="words"><option>1000-1200</option><option selected>1200-1500</option><option>800-1000</option></select></div>
   </div>
+  <div class="row">
+    <div><label for="writerBlog">Publish to blog</label><select id="writerBlog"><option value="" disabled selected>Connect Blogger first</option></select></div>
+  </div>
+  <p class="small" id="writerUsage"></p>
   <div class="row" style="margin-top:16px">
     <button class="btn" onclick="generateArticle()">Generate Article + Images</button>
     <button class="btn ghost" onclick="saveDraft()">Save as Draft</button>
@@ -226,8 +230,11 @@
   <h2>Pin Generator</h2><p>3 Pinterest pin designs from your article, with SEO title, description and hashtags.</p>
   <label for="pinTopic">Article topic (for the pins)</label>
   <input id="pinTopic" placeholder="Example: Cozy small bedroom decor ideas" value="Cozy small bedroom decor ideas">
-  <label for="pinBoard">Pinterest board</label>
-  <select id="pinBoard"><option>Home Decor Ideas</option><option>Bedroom Ideas</option><option>Cozy Living</option><option>DIY Home</option><option>My Blog Posts</option></select>
+  <div class="row">
+    <div><label for="pinAccount">Pinterest account</label><select id="pinAccount"><option value="" disabled selected>Connect Pinterest first</option></select></div>
+    <div><label for="pinBoard">Pinterest board</label><select id="pinBoard"><option value="" disabled selected>Pick an account first</option></select></div>
+  </div>
+  <p class="small" id="pinsUsage"></p>
   <div class="row" style="margin-top:16px">
     <button class="btn" onclick="generatePins()">Generate 3 Pins</button>
     <button class="btn green" onclick="publishPins()">Publish to Pinterest</button>
@@ -251,10 +258,11 @@
     <div class="card"><h3><svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="10"/><line x1="2" y1="12" x2="22" y2="12"/><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/></svg>Blogger</h3><p>Status: <span class="badge off" id="badgeBlogger">Not connected</span></p>
       <p class="small muted">Connect your Blogger blog so articles can publish automatically. Connection state comes from the BlogNeo server — no manual marking.</p>
       <div class="row"><button class="btn small" onclick="connectBlogger()">Connect Blogger</button></div>
+      <div id="blogList" style="margin-top:10px"></div>
       <div id="blogPicker" style="display:none; margin-top:10px">
-        <label for="blogSelect">Select your blog</label>
+        <label for="blogSelect">Add a blog</label>
         <select id="blogSelect"></select>
-        <div class="row" style="margin-top:8px"><button class="btn small" id="blogSaveBtn" onclick="selectBlog()">Save Blog</button></div>
+        <div class="row" style="margin-top:8px"><button class="btn small" id="blogSaveBtn" onclick="selectBlog()">Add Blog</button></div>
         <p class="small muted" id="blogLockNote"></p>
       </div>
       <button class="btn small ghost" onclick="disconnect('blogger')" style="margin-top:8px">Disconnect</button></div>
@@ -262,6 +270,8 @@
       <p class="small muted" id="pinterestAccountLine" style="display:none">Account: <b id="pinterestAccountName"></b></p>
       <p class="small muted">Connect Pinterest so pins can publish automatically. Connection state comes from the BlogNeo server — no manual marking.</p>
       <div class="row"><button class="btn small" onclick="connectPinterest()">Connect Pinterest</button></div>
+      <div id="pinAccountList" style="margin-top:10px"></div>
+      <p class="small muted" id="pinLimitNote"></p>
       <button class="btn small ghost" onclick="disconnect('pinterest')" style="margin-top:8px">Disconnect</button></div>
   </div>
   <details><summary>What happens when I click Connect?</summary>
@@ -277,12 +287,16 @@
     <input id="autoNiche" placeholder="Example: Cozy home decor" value="Cozy home decor">
     <div class="row">
       <div><label for="autoTime">Run time (daily)</label><input id="autoTime" type="time" value="08:00"></div>
-      <div><label>Articles per day</label><select id="autoCount"><option selected>1</option><option>2</option><option>3</option></select></div>
+      <div><label>Articles per day</label><select id="autoCount"><option selected>1</option><option>2</option><option>3</option><option>4</option><option>5</option><option>6</option><option>7</option><option>8</option><option>9</option><option>10</option></select></div>
     </div>
     <div class="row">
       <div><label for="autoBlog">Blogger blog</label><select id="autoBlog"><option value="" disabled selected>Connect Blogger first</option></select></div>
-      <div><label for="autoBoard">Pinterest board</label><select id="autoBoard"><option>Home Decor Ideas</option><option>Bedroom Ideas</option><option>Cozy Living</option><option>DIY Home</option><option>My Blog Posts</option></select></div>
+      <div><label for="autoAccount">Pinterest account</label><select id="autoAccount"><option value="" disabled selected>Connect Pinterest first</option></select></div>
     </div>
+    <div class="row">
+      <div><label for="autoBoard">Pinterest board</label><select id="autoBoard"><option value="" disabled selected>Pick an account first</option></select></div>
+    </div>
+    <p class="small" id="autoUsage"></p>
     <div class="row" style="margin-top:18px;align-items:center">
       <label class="switch"><input type="checkbox" id="autoToggle" onchange="toggleAuto()"><span class="slider"></span></label>
       <b id="autoState">Auto Flow is OFF</b>
@@ -304,10 +318,10 @@
   <p>Current plan: <span class="badge off" id="planBadge">Free</span> <span id="planNote"></span></p>
   <div class="grid g2">
     <div class="card"><h3>Free</h3><div class="price">৳0<small> / month</small></div>
-      <ul class="check"><li>1 blog</li><li>3 articles / month</li><li>Manual pins</li><li>No daily auto flow</li></ul>
+      <ul class="check"><li>1 blog — 5 articles / day</li><li>1 Pinterest account — 3 pins / day</li><li>Manual pins</li><li>No daily auto flow</li></ul>
       <button class="btn ghost" onclick="chooseFree()">Use Free Plan</button></div>
     <div class="card" style="border-color:var(--gold)"><h3>Pro</h3><div class="price">৳499<small> / month</small></div>
-      <ul class="check"><li>Unlimited blogs</li><li>Daily auto article</li><li>Auto pins — Pinterest SEO + publish</li><li>Auto Blogger publish</li></ul>
+      <ul class="check"><li>5 blogs — 10 articles / day each</li><li>5 Pinterest accounts — 6 pins / day each</li><li>Daily auto article</li><li>Auto pins — Pinterest SEO + publish</li><li>Auto Blogger publish</li></ul>
       <button class="btn" onclick="showProPay()">Upgrade to Pro — ৳499/month</button></div>
   </div>
   <div class="card" id="payBox" style="display:none;margin-top:14px"><h3>Pay for Pro — manual payment</h3>
@@ -317,7 +331,7 @@
     <p class="small muted">No bKash / Nagad number is printed here — the number is shared after you contact the email above. Do not send money to any other number.</p>
     <div class="row"><button class="btn green" onclick="markPaid()">I paid — mark as Pending</button><button class="btn ghost" onclick="document.getElementById('payBox').style.display='none'">Close</button></div>
   </div>
-  <details><summary>What do I get after Pro is activated?</summary><p>Daily auto article, auto images, auto Blogger publish and auto Pinterest pins — for unlimited blogs. Free stays limited to 1 blog and 3 articles a month, manual pins only.</p></details>
+  <details><summary>What do I get after Pro is activated?</summary><p>Daily auto article, auto images, auto Blogger publish and auto Pinterest pins — for up to 5 blogs (10 articles/day each) and 5 Pinterest accounts (6 pins/day each). Free stays limited to 1 blog (5 articles/day) and 1 Pinterest account (3 pins/day), manual pins only.</p></details>
 </section>
 
 </main>
