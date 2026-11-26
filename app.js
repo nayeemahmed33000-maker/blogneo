@@ -49,7 +49,7 @@ function renderAuthUI(){
   const gb = $('guestBanner');
   if (gb) gb.style.display = (!authed && isGuest()) ? '' : 'none';
 }
-let state = {blogger:false, pinterest:false, plan:'free', autoOn:false, autoTime:'08:00', autoNiche:'Cozy home decor', articles:0, pins:0, log:[], latest:''};
+let state = {blogger:false, bloggerBlogId:'', bloggerBlogName:'', bloggerLocked:false, pinterest:false, plan:'free', autoOn:false, autoTime:'08:00', autoNiche:'Cozy home decor', articles:0, pins:0, log:[], latest:''};
 try { const s = JSON.parse(localStorage.getItem(KEY) || '{}'); state = {...state, ...s}; } catch(e) {}
 function save(){ localStorage.setItem(KEY, JSON.stringify(state)); }
 function toast(msg){ const t=$('toast'); t.textContent=msg; t.style.display='block'; clearTimeout(t._h); t._h=setTimeout(()=>t.style.display='none', 5000); }
@@ -77,6 +77,7 @@ function go(page){
   document.querySelectorAll('#nav button').forEach(b=>b.classList.toggle('active', b.dataset.page===page));
   if(page==='dashboard') renderDashboard();
   if(page==='autoflow') loadAutoFlow();
+  if(page==='connections' && state.blogger) loadBlogPicker();
   renderAuthUI();
   window.scrollTo({top:0, behavior:'smooth'});
 }
@@ -190,6 +191,8 @@ async function refreshStatus(){
     const s = await api('/api/status');
     state.plan = s.plan || 'free';
     state.blogger = !!(s.blogger && s.blogger.status === 'connected');
+    state.bloggerBlogId = (s.blogger && s.blogger.blog_id) || '';
+    state.bloggerBlogName = (s.blogger && s.blogger.blog_name) || '';
     state.pinterest = !!(s.pinterest && s.pinterest.status === 'connected');
     state.articles = (s.counts && s.counts.articles) || 0;
     if(s.auto){ state.autoOn = !!s.auto.auto_on; state.autoTime = s.auto.run_time || '08:00'; state.autoNiche = s.auto.niche || state.autoNiche; }
@@ -197,12 +200,13 @@ async function refreshStatus(){
       state.log = s.runs.slice(0,10).map(r => (r.created_at||'').slice(0,16).replace('T',' ') + ' — Auto run: ' + r.niche + ' → ' + r.status + (r.blogger_url ? ' — ' + r.blogger_url : '') + (r.error ? ' — ' + r.error : ''));
     }
     save(); renderBadges(); renderDashboard(); renderAuto();
+    if(state.blogger) loadBlogPicker();
   }catch(e){ /* backend unreachable — keep local state, UI still works with template fallback */ }
 }
 function renderDashboard(){
   $('statArticles').textContent = state.articles;
   $('statPins').textContent = state.pins;
-  $('statBlogger').textContent = state.blogger ? 'Connected' : 'Not connected';
+  $('statBlogger').textContent = state.blogger ? (state.bloggerBlogName ? 'Connected — ' + state.bloggerBlogName : 'Connected — no blog selected') : 'Not connected';
   $('statPinterest').textContent = state.pinterest ? 'Connected' : 'Not connected';
   $('dashAuto').textContent = state.autoOn ? 'ON — runs daily at '+state.autoTime+' for niche "'+state.autoNiche+'".' : 'Off — turn it on in Daily Auto Flow.';
   $('dashPlan').textContent = state.plan==='pro' ? 'Pro plan — daily auto flow unlocked.' : state.plan==='pro-pending' ? 'Pro — payment pending (activation within 24h after confirmation).' : 'Free plan — 1 blog, 3 articles/month, manual pins.';
@@ -311,6 +315,7 @@ function saveDraft(){ if(!currentArticle){ toast('Generate an article first.'); 
 async function publishArticle(){
   if(!currentArticle){ toast('Generate an article first.'); go('writer'); return; }
   if(!state.blogger){ toast('Blogger is not connected — connect it in Connections first.'); go('connections'); return; }
+  if(!state.bloggerBlogId){ toast('Select a blog first in Connections.'); go('connections'); return; }
   try{
     const r = await api('/api/blogger/publish', {method:'POST', body: JSON.stringify({title: (currentArticleMeta&&currentArticleMeta.title)||$('topic').value, draft: currentArticle, image: (currentArticleMeta&&currentArticleMeta.image)||null})});
     toast('Published to Blogger: ' + r.url);
@@ -369,8 +374,54 @@ function connectPinterest(){
 async function disconnect(which){
   try{ await api('/api/' + which + '/disconnect', {method:'POST', body: '{}'}); }catch(e){ /* already disconnected */ }
   state[which]=false; save(); renderBadges(); renderDashboard();
+  if(which==='blogger'){
+    state.bloggerBlogId=''; state.bloggerBlogName=''; state.bloggerLocked=false;
+    const wrap=$('blogPicker'); if(wrap) wrap.style.display='none';
+  }
   toast((which==='blogger'?'Blogger':'Pinterest')+' disconnected.');
   log((which==='blogger'?'Blogger':'Pinterest')+' disconnected.');
+}
+// ---------- Blog picker (Free = pick ONE blog, then it auto-locks) ----------
+async function loadBlogPicker(){
+  const wrap = $('blogPicker'); if(!wrap) return;
+  if(!state.blogger){ wrap.style.display='none'; return; }
+  wrap.style.display='';
+  try{
+    const r = await api('/api/blogger/blogs');
+    const sel = $('blogSelect');
+    sel.innerHTML='';
+    (r.blogs||[]).forEach(b=>{
+      const o=document.createElement('option'); o.value=b.id; o.textContent=b.name+(b.url?' ('+b.url+')':''); sel.appendChild(o);
+    });
+    if(!r.blogs || !r.blogs.length){ const o=document.createElement('option'); o.value=''; o.textContent='No blogs found on this Blogger account'; sel.appendChild(o); }
+    if(r.selected_blog_id) sel.value = r.selected_blog_id;
+    state.bloggerLocked = !!r.locked;
+    state.bloggerBlogId = r.selected_blog_id || '';
+    const locked = !!r.locked, isPro = (r.plan||state.plan)==='pro';
+    sel.disabled = locked;
+    const saveBtn = $('blogSaveBtn'); if(saveBtn) saveBtn.disabled = locked;
+    $('blogLockNote').textContent = locked
+      ? '🔒 Locked — Free plan allows 1 blog. Upgrade to Pro to change.'
+      : isPro ? 'Pro plan — you can change your blog anytime.'
+      : 'Pick your one blog — Free plan locks your choice after you save it.';
+    save();
+  }catch(e){
+    $('blogLockNote').textContent = 'Could not load your blogs: '+e.message;
+  }
+}
+async function selectBlog(){
+  const id = $('blogSelect').value;
+  if(!id){ toast('Pick a blog first.'); return; }
+  const btn = $('blogSaveBtn'); btn.disabled = true; btn.textContent = 'Saving…';
+  try{
+    const r = await api('/api/blogger/select-blog', {method:'POST', body: JSON.stringify({blog_id: id})});
+    toast('Blog selected: ' + (r.blog && r.blog.name ? r.blog.name : id));
+    log('Blogger blog selected: ' + (r.blog && r.blog.name ? r.blog.name : id));
+    refreshStatus();
+  }catch(e){
+    toast(e.message || 'Could not save the blog.');
+    btn.disabled = false; btn.textContent = 'Save Blog';
+  }
 }
 // Owner Settings are now informational only — OAuth Client IDs live as
 // Worker secrets on the backend, never in the browser. Kept for backwards
