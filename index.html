@@ -189,6 +189,17 @@
     <div class="card"><h3>Your plan</h3><p id="dashPlan">Free plan</p><button class="btn small ghost" onclick="go('subscription')">View Subscription</button></div>
   </div>
   <div class="card" style="margin-top:14px"><h3>Latest article</h3><p id="dashLatest">No article yet. Generate one in Article Writer.</p><button class="btn small" onclick="go('writer')">Go to Article Writer</button></div>
+  <div class="card" style="margin-top:14px" id="adsCard">
+    <div style="display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap">
+      <h3 style="margin:0"><svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="12" y1="20" x2="12" y2="10"/><line x1="18" y1="20" x2="18" y2="4"/><line x1="6" y1="20" x2="6" y2="16"/></svg>Adsterra Earnings</h3>
+      <span class="ads-range">
+        <button class="btn small ghost" id="adsRange7" onclick="setAdsRange(7)">7 days</button>
+        <button class="btn small ghost" id="adsRange30" onclick="setAdsRange(30)">30 days</button>
+        <button class="btn small" onclick="loadAdStats(state.adsRange||30)">Refresh</button>
+      </span>
+    </div>
+    <div id="adsBody"><p class="muted">Loading Adsterra stats…</p></div>
+  </div>
   <div class="card" style="margin-top:14px"><h3>Recent activity</h3><div class="log" id="dashLog"><div>No activity yet.</div></div><button class="btn small ghost" onclick="clearLog()">Clear log</button></div>
 </section>
 
@@ -274,6 +285,15 @@
       <p class="small muted" id="pinLimitNote"></p>
       <button class="btn small ghost" id="btnAddPinterest" style="display:none;margin-top:8px" onclick="connectPinterest()">Connect another account</button>
       <button class="btn small ghost" onclick="disconnect('pinterest')" style="margin-top:8px">Disconnect</button></div>
+    <div class="card" style="grid-column:1/-1"><h3><svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="12" y1="20" x2="12" y2="10"/><line x1="18" y1="20" x2="18" y2="4"/><line x1="6" y1="20" x2="6" y2="16"/></svg>Adsterra — see your ad earnings</h3><p>Status: <span class="badge off" id="badgeAdsterra">Not connected</span> <span class="small muted" id="adsTokenSaved" style="display:none">Token saved — your earnings show on the Dashboard.</span></p>
+      <p class="small muted">Paste your Adsterra API token to see your ad earnings on the Dashboard. Get it from your Adsterra account → Settings → API. The token stays on the BlogNeo server, encrypted — it is never shown again. <b>Important:</b> Adsterra allows only one valid token at a time — paste the SAME token you already use in your other tools. Generating a new token would stop your earnings showing there.</p>
+      <label for="adsToken">Adsterra API token</label>
+      <input id="adsToken" type="password" placeholder="Paste your Adsterra API token here…" autocomplete="off">
+      <div class="row" style="margin-top:10px">
+        <button class="btn small" id="adsSaveBtn" onclick="saveAdsterraToken()">Save Token</button>
+        <button class="btn small ghost" id="adsRemoveBtn" style="display:none" onclick="removeAdsterraToken()">Remove Token</button>
+      </div>
+      <p class="small" id="adsMsg" style="display:none"></p></div>
   </div>
   <details><summary>What happens when I click Connect?</summary>
     <p>Clicking Connect opens the sign-in page of Google (for Blogger) or Pinterest in a new tab. Sign in, check what BlogNeo can access, and approve. You come straight back to BlogNeo, and your connection shows as Connected. You can disconnect anytime from this page — BlogNeo never sees your password.</p>
