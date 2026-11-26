@@ -85,6 +85,11 @@ input:focus,select:focus,textarea:focus{outline:2px solid var(--gold);outline-of
 .badge.demo{background:#3a2f10;color:var(--gold2)}
 .article{white-space:pre-wrap;background:#08170f;border:1px solid var(--line);border-radius:12px;padding:16px;font-size:15px}
 .pin-canvas,.art-canvas{width:100%;border-radius:12px;border:1px solid var(--line);display:block;background:#123528}
+.pin-card{border:2px solid transparent;border-radius:14px;padding:8px;cursor:pointer;background:var(--card)}
+.pin-card.selected{border-color:var(--gold);box-shadow:0 0 0 3px rgba(212,175,55,.3)}
+.pin-card-text p{margin:8px 2px;font-size:13px;line-height:1.5;overflow-wrap:anywhere}
+.pin-selected-badge{display:none;margin:6px 2px 0;font-size:12px;font-weight:700;color:var(--gold2)}
+.pin-card.selected .pin-selected-badge{display:block}
 .log{background:#08170f;border:1px solid var(--line);border-radius:12px;padding:12px;max-height:260px;overflow:auto;font-size:13px}
 .log div{padding:7px 4px;border-bottom:1px solid #12291f}
 .log div:last-child{border-bottom:0}
