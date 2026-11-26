@@ -480,6 +480,11 @@ async function markPaid(){
 }
 
 // ---------- Init ----------
+// Boot splash: covers the first paint so a logged-in user never sees the
+// login screen (or the logged-out landing page) flash while /api/auth/me
+// is still checking the session. Hidden only after initAuth has decided
+// the real page. A failsafe timer hides it even if the check hangs.
+function hideBoot(){ const s=$('bootSplash'); if(s) s.style.display='none'; }
 async function initAuth(){
   const q = new URLSearchParams(location.search);
   // Google sign-in returns here with a session token in the URL.
@@ -496,6 +501,7 @@ async function initAuth(){
       renderAuthUI();
       refreshStatus(); loadAutoFlow(); renderBadges(); renderDashboard(); renderAuto(); renderLog();
       go('dashboard');
+      hideBoot();
       return;
     }catch(e){ clearSession(); } // bad/expired token — fall through to login screen
   }
@@ -507,6 +513,7 @@ async function initAuth(){
     $('page-login').classList.add('active');
     renderAuthUI();
   }
+  hideBoot();
 }
 (function init(){
   const q = new URLSearchParams(location.search);
@@ -516,5 +523,7 @@ async function initAuth(){
   // NOTE: do NOT strip the URL here — initAuth() needs ?auth_token= from
   // the Google sign-in callback. initAuth strips it after reading.
   if(!q.get('auth_token') && !q.get('auth_error')) history.replaceState({}, '', location.pathname);
+  // Failsafe: never trap the user behind the splash if the session check hangs.
+  setTimeout(hideBoot, 8000);
   initAuth();
 })();
