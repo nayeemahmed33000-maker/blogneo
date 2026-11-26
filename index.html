@@ -191,6 +191,12 @@
     <div class="card"><h3>🔶 Blogger</h3><p>Status: <span class="badge off" id="badgeBlogger">Not connected</span></p>
       <p class="small muted">Connect your Blogger blog so articles can publish automatically. Connection state comes from the BlogNeo server — no manual marking.</p>
       <div class="row"><button class="btn small" onclick="connectBlogger()">Connect Blogger</button></div>
+      <div id="blogPicker" style="display:none; margin-top:10px">
+        <label for="blogSelect">Select your blog</label>
+        <select id="blogSelect"></select>
+        <div class="row" style="margin-top:8px"><button class="btn small" id="blogSaveBtn" onclick="selectBlog()">Save Blog</button></div>
+        <p class="small muted" id="blogLockNote"></p>
+      </div>
       <button class="btn small ghost" onclick="disconnect('blogger')" style="margin-top:8px">Disconnect</button></div>
     <div class="card"><h3>📌 Pinterest</h3><p>Status: <span class="badge off" id="badgePinterest">Not connected</span></p>
       <p class="small muted">Connect Pinterest so pins can publish automatically. Connection state comes from the BlogNeo server — no manual marking.</p>
