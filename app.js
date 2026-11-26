@@ -53,7 +53,7 @@ function renderAuthUI(){
   const gb = $('guestBanner');
   if (gb) gb.style.display = (!authed && isGuest()) ? '' : 'none';
 }
-let state = {profileName:'', blogger:false, bloggerBlogId:'', bloggerBlogName:'', bloggerLocked:false, pinterest:false, pinterestName:'', pinterestUrl:'', plan:'free', autoOn:false, autoTime:'08:00', autoNiche:'Cozy home decor', articles:0, pins:0, log:[], latest:''};
+let state = {profileName:'', blogger:false, bloggerBlogId:'', bloggerBlogName:'', bloggerLocked:false, pinterest:false, pinterestName:'', pinterestUrl:'', plan:'free', autoOn:false, autoTime:'08:00', autoNiche:'Cozy home decor', articles:0, pins:0, log:[], latest:'', blogs:[], pinterestAccounts:[], usage:null, limits:null, boardsByAccount:{}, writerBlogId:'', pinAccount:'', autoAccount:'', autoBlogId:'', autoBoardWant:''};
 try { const s = JSON.parse(localStorage.getItem(KEY) || '{}'); state = {...state, ...s}; } catch(e) {}
 function save(){ localStorage.setItem(KEY, JSON.stringify(state)); }
 function toast(msg){ const t=$('toast'); t.textContent=msg; t.style.display='block'; clearTimeout(t._h); t._h=setTimeout(()=>t.style.display='none', 5000); }
@@ -86,7 +86,7 @@ function go(page){
   document.querySelectorAll('#nav button').forEach(b=>b.classList.toggle('active', b.dataset.page===page));
   if(page==='dashboard') renderDashboard();
   if(page==='autoflow') loadAutoFlow();
-  if(page==='connections' && state.blogger) loadBlogPicker();
+  if(page==='connections'){ if(state.blogger) loadBlogPicker(); loadPinAccounts(); }
   if(page==='profile') loadProfilePage();
   renderAuthUI();
   window.scrollTo({top:0, behavior:'smooth'});
@@ -274,12 +274,17 @@ async function refreshStatus(){
     state.pinterestName = (s.pinterest && s.pinterest.blog_name) || '';
     state.pinterestUrl = (s.pinterest && s.pinterest.blog_url) || '';
     state.articles = (s.counts && s.counts.articles) || 0;
+    state.blogs = s.blogs || [];
+    state.pinterestAccounts = s.pinterest_accounts || [];
+    state.usage = s.usage || null;
+    state.limits = s.limits || null;
     if(s.auto){ state.autoOn = !!s.auto.auto_on; state.autoTime = s.auto.run_time || '08:00'; state.autoNiche = s.auto.niche || state.autoNiche; }
     if(s.runs && s.runs.length){
       state.log = s.runs.slice(0,10).map(r => (r.created_at||'').slice(0,16).replace('T',' ') + ' — Auto run: ' + r.niche + ' → ' + r.status + (r.blogger_url ? ' — ' + r.blogger_url : '') + (r.error ? ' — ' + r.error : ''));
     }
-    save(); renderBadges(); renderDashboard(); renderAuto();
+    save(); renderBadges(); renderDashboard(); renderAuto(); renderBlogPickers(); renderPinPickers(); renderUsageLines();
     if(state.blogger) loadBlogPicker();
+    if(state.pinterest) loadPinAccounts();
   }catch(e){ /* backend unreachable — keep local state, UI still works with template fallback */ }
 }
 function renderDashboard(){
@@ -288,7 +293,7 @@ function renderDashboard(){
   $('statBlogger').textContent = state.blogger ? (state.bloggerBlogName ? 'Connected — ' + state.bloggerBlogName : 'Connected — no blog selected') : 'Not connected';
   $('statPinterest').textContent = state.pinterest ? (state.pinterestName ? 'Connected — ' + state.pinterestName : 'Connected') : 'Not connected';
   $('dashAuto').textContent = state.autoOn ? 'ON — runs daily at '+state.autoTime+' for niche "'+state.autoNiche+'".' : 'Off — turn it on in Daily Auto Flow.';
-  $('dashPlan').textContent = state.plan==='pro' ? 'Pro plan — daily auto flow unlocked.' : state.plan==='pro-pending' ? 'Pro — payment pending (activation within 24h after confirmation).' : 'Free plan — 1 blog, 3 articles/month, manual pins.';
+  $('dashPlan').textContent = state.plan==='pro' ? 'Pro plan — 5 blogs (10 articles/day each), 5 Pinterest accounts (6 pins/day each). Daily auto flow unlocked.' : state.plan==='pro-pending' ? 'Pro — payment pending (activation within 24h after confirmation).' : 'Free plan — 1 blog (5 articles/day), 1 Pinterest account (3 pins/day).';
   $('dashLatest').textContent = state.latest || 'No article yet. Generate one in Article Writer.';
   renderLog(); renderBadges();
 }
@@ -398,8 +403,8 @@ async function publishArticle(){
   if(!state.blogger){ toast('Blogger is not connected — connect it in Connections first.'); go('connections'); return; }
   if(!state.bloggerBlogId){ toast('Select a blog first in Connections.'); go('connections'); return; }
   try{
-    const r = await api('/api/blogger/publish', {method:'POST', body: JSON.stringify({title: (currentArticleMeta&&currentArticleMeta.title)||$('topic').value, draft: currentArticle, image: (currentArticleMeta&&currentArticleMeta.image)||null})});
-    toast('Published to Blogger: ' + r.url);
+    const r = await api('/api/blogger/publish', {method:'POST', body: JSON.stringify({blog_id: state.writerBlogId || state.bloggerBlogId || undefined, title: (currentArticleMeta&&currentArticleMeta.title)||$('topic').value, draft: currentArticle, image: (currentArticleMeta&&currentArticleMeta.image)||null})});
+    toast('Published to Blogger: ' + r.url + (r.usage ? ' (' + r.usage.articles_today + '/' + r.usage.articles_limit + ' articles today)' : ''));
     log('Published to Blogger: ' + r.url);
     refreshStatus();
   }catch(e){ toast('Publish failed: '+e.message); log('Blogger publish failed: '+e.message); }
@@ -434,8 +439,9 @@ async function publishPins(){
   if($('pinOut').style.display==='none'){ toast('Generate pins first.'); return; }
   if(!state.pinterest){ toast('Pinterest is not connected — connect it in Connections first.'); go('connections'); return; }
   try{
-    const r = await api('/api/pinterest/publish', {method:'POST', body: JSON.stringify({title: $('pinTitle').textContent, description: $('pinDesc').textContent, board_id: null, image_base64: (currentArticleMeta&&currentArticleMeta.image&&currentArticleMeta.image.image_base64)||null})});
-    toast('Pin published to Pinterest: ' + r.url);
+    const boardSel = $('pinBoard');
+    const r = await api('/api/pinterest/publish', {method:'POST', body: JSON.stringify({title: $('pinTitle').textContent, description: $('pinDesc').textContent, account: state.pinAccount || undefined, board_id: (boardSel && boardSel.value) || null, image_base64: (currentArticleMeta&&currentArticleMeta.image&&currentArticleMeta.image.image_base64)||null})});
+    toast('Pin published to Pinterest: ' + r.url + (r.usage ? ' (' + r.usage.pins_today + '/' + r.usage.pins_limit + ' pins today)' : ''));
     log('Published pin to Pinterest: ' + r.url);
   }catch(e){ toast('Pin publish failed: '+e.message); log('Pinterest publish failed: '+e.message); }
 }
@@ -456,88 +462,224 @@ async function disconnect(which){
   try{ await api('/api/' + which + '/disconnect', {method:'POST', body: '{}'}); }catch(e){ /* already disconnected */ }
   state[which]=false; save(); renderBadges(); renderDashboard();
   if(which==='blogger'){
-    state.bloggerBlogId=''; state.bloggerBlogName=''; state.bloggerLocked=false;
+    state.bloggerBlogId=''; state.bloggerBlogName=''; state.bloggerLocked=false; state.blogs=[];
     const wrap=$('blogPicker'); if(wrap) wrap.style.display='none';
+    const bl=$('blogList'); if(bl) bl.innerHTML='';
+  }
+  if(which==='pinterest'){
+    state.pinterestAccounts=[]; state.pinterestName=''; state.boardsByAccount={}; state.pinAccount=''; state.autoAccount='';
+    const pl=$('pinAccountList'); if(pl) pl.innerHTML='';
   }
   toast((which==='blogger'?'Blogger':'Pinterest')+' disconnected.');
   log((which==='blogger'?'Blogger':'Pinterest')+' disconnected.');
 }
-// ---------- Blog picker (Free = pick ONE blog, then it auto-locks) ----------
+// ---------- Blog picker (Free = 1 blog, Pro = up to 5) ----------
 async function loadBlogPicker(){
   const wrap = $('blogPicker'); if(!wrap) return;
-  if(!state.blogger){ wrap.style.display='none'; return; }
+  if(!state.blogger){ wrap.style.display='none'; const bl=$('blogList'); if(bl) bl.innerHTML=''; return; }
   wrap.style.display='';
   try{
     const r = await api('/api/blogger/blogs');
+    state.blogs = r.selected_blogs || [];
+    state.bloggerBlogId = r.active_blog_id || '';
+    // Connected blogs list: active badge + Set active + Remove per blog.
+    const list = $('blogList');
+    if(list){
+      if(!state.blogs.length){ list.innerHTML = '<p class="small muted">No blog added yet — pick one below.</p>'; }
+      else list.innerHTML = state.blogs.map((b,i)=>{
+        const active = i===0;
+        return '<div class="row" style="align-items:center;margin-top:6px"><span style="flex:1">'+esc(b.name)+(b.url?' <span class="small muted">'+esc(b.url)+'</span>':'')+'</span>'
+          + (active ? '<span class="badge on">Active</span>' : '<button class="btn small ghost" onclick="selectBlog(\''+esc(b.id)+'\')">Set active</button>')
+          + ' <button class="btn small ghost" onclick="removeBlog(\''+esc(b.id)+'\')">Remove</button></div>';
+      }).join('');
+    }
     const sel = $('blogSelect');
+    const added = new Set(state.blogs.map(b=>b.id));
     sel.innerHTML='';
-    (r.blogs||[]).forEach(b=>{
+    (r.blogs||[]).filter(b=>!added.has(String(b.id))).forEach(b=>{
       const o=document.createElement('option'); o.value=b.id; o.textContent=b.name+(b.url?' ('+b.url+')':''); sel.appendChild(o);
     });
-    if(!r.blogs || !r.blogs.length){ const o=document.createElement('option'); o.value=''; o.textContent='No blogs found on this Blogger account'; sel.appendChild(o); }
-    if(r.selected_blog_id) sel.value = r.selected_blog_id;
-    state.bloggerLocked = !!r.locked;
-    state.bloggerBlogId = r.selected_blog_id || '';
-    const locked = !!r.locked, isPro = (r.plan||state.plan)==='pro';
-    sel.disabled = locked;
-    const saveBtn = $('blogSaveBtn'); if(saveBtn) saveBtn.disabled = locked;
-    $('blogLockNote').textContent = locked
-      ? 'Locked — Free plan allows 1 blog. Upgrade to Pro to change.'
-      : isPro ? 'Pro plan — you can change your blog anytime.'
-      : 'Pick your one blog — Free plan locks your choice after you save it.';
-    save();
+    const canAdd = !!r.can_add;
+    const isPro = (r.plan||state.plan)==='pro';
+    sel.disabled = !canAdd;
+    const saveBtn = $('blogSaveBtn'); if(saveBtn){ saveBtn.disabled = !canAdd; saveBtn.textContent = 'Add Blog'; }
+    $('blogLockNote').textContent = canAdd
+      ? (isPro ? 'Pro plan — '+(r.blogs_count||0)+'/'+(r.blogs_limit||5)+' blogs connected (10 articles/day each).' : 'Free plan — pick your 1 blog (5 articles/day). Upgrade to Pro for up to 5 blogs.')
+      : (isPro ? 'Pro plan — 5/5 blogs connected (10 articles/day each). Remove one to add another.' : 'Free plan — 1 blog connected (5 articles/day). Upgrade to Pro for up to 5 blogs.');
+    state.bloggerLocked = !canAdd;
+    save(); renderBlogPickers(); renderUsageLines();
   }catch(e){
     $('blogLockNote').textContent = 'Could not load your blogs: '+e.message;
   }
 }
-async function selectBlog(){
-  const id = $('blogSelect').value;
+async function selectBlog(blogId){
+  const id = blogId || $('blogSelect').value;
   if(!id){ toast('Pick a blog first.'); return; }
-  const btn = $('blogSaveBtn'); btn.disabled = true; btn.textContent = 'Saving…';
+  const btn = $('blogSaveBtn'); if(btn){ btn.disabled = true; btn.textContent = 'Saving…'; }
   try{
     const r = await api('/api/blogger/select-blog', {method:'POST', body: JSON.stringify({blog_id: id})});
-    toast('Blog selected: ' + (r.blog && r.blog.name ? r.blog.name : id));
+    toast((r.active ? 'Active blog: ' : 'Blog added: ') + (r.blog && r.blog.name ? r.blog.name : id));
     log('Blogger blog selected: ' + (r.blog && r.blog.name ? r.blog.name : id));
     refreshStatus();
   }catch(e){
     toast(e.message || 'Could not save the blog.');
-    btn.disabled = false; btn.textContent = 'Save Blog';
+  }finally{
+    if(btn){ btn.disabled = false; btn.textContent = 'Add Blog'; }
+  }
+}
+async function removeBlog(blogId){
+  if(!blogId) return;
+  try{
+    await api('/api/blogger/remove-blog', {method:'POST', body: JSON.stringify({blog_id: blogId})});
+    toast('Blog removed.');
+    log('Blogger blog removed: ' + blogId);
+    refreshStatus();
+  }catch(e){ toast(e.message || 'Could not remove the blog.'); }
+}
+// ---------- Pinterest accounts + real boards (never hardcoded) ----------
+async function loadPinAccounts(){
+  try{
+    const s = await api('/api/status');
+    state.pinterestAccounts = s.pinterest_accounts || [];
+    state.pinterest = !!(s.pinterest && s.pinterest.status === 'connected');
+    state.pinterestName = (s.pinterest && s.pinterest.blog_name) || '';
+    state.usage = s.usage || state.usage;
+    state.limits = s.limits || state.limits;
+    save(); renderPinAccountList(); renderPinPickers(); renderUsageLines();
+  }catch(e){ /* keep local state */ }
+}
+function renderPinAccountList(){
+  const list = $('pinAccountList'); if(!list) return;
+  const limit = (state.limits && state.limits.pinterest_accounts) || (state.plan==='pro' ? 5 : 1);
+  if(!state.pinterestAccounts.length){ list.innerHTML = '<p class="small muted">No Pinterest account connected yet.</p>'; }
+  else list.innerHTML = state.pinterestAccounts.map((a,i)=>{
+    return '<div class="row" style="align-items:center;margin-top:6px"><span style="flex:1">'+esc(a.username)+(a.url?' <span class="small muted">'+esc(a.url)+'</span>':'')+'</span>'
+      + (i===0 ? '<span class="badge on">Active</span>' : '')
+      + ' <button class="btn small ghost" onclick="removePinterestAccount(\''+esc(a.username)+'\')">Remove</button></div>';
+  }).join('');
+  const note = $('pinLimitNote');
+  if(note) note.textContent = state.plan==='pro'
+    ? 'Pro plan — '+state.pinterestAccounts.length+'/'+limit+' Pinterest accounts connected (6 pins/day each). Connect another account with the button above.'
+    : 'Free plan — '+state.pinterestAccounts.length+'/'+limit+' Pinterest account connected (3 pins/day). Upgrade to Pro for up to 5 accounts.';
+}
+async function removePinterestAccount(username){
+  if(!username) return;
+  try{
+    await api('/api/pinterest/remove-account', {method:'POST', body: JSON.stringify({account: username})});
+    toast('Pinterest account removed: ' + username);
+    log('Pinterest account removed: ' + username);
+    refreshStatus();
+  }catch(e){ toast(e.message || 'Could not remove the account.'); }
+}
+// Boards come from Pinterest for the SELECTED account — never a hardcoded
+// list, never another account's boards. On failure the error is shown.
+async function loadBoardsFor(account, boardSelect){
+  if(!boardSelect) return;
+  if(!account){ boardSelect.innerHTML=''; const o=document.createElement('option'); o.value=''; o.textContent='Pick an account first'; o.disabled=true; boardSelect.appendChild(o); boardSelect.disabled=true; return; }
+  boardSelect.disabled = true;
+  boardSelect.innerHTML=''; const loading=document.createElement('option'); loading.value=''; loading.textContent='Loading boards…'; loading.disabled=true; boardSelect.appendChild(loading);
+  try{
+    if(!state.boardsByAccount[account]){
+      const r = await api('/api/pinterest/boards?account=' + encodeURIComponent(account));
+      state.boardsByAccount[account] = r.boards || [];
+      save();
+    }
+    const boards = state.boardsByAccount[account];
+    boardSelect.innerHTML='';
+    if(!boards.length){ const o=document.createElement('option'); o.value=''; o.textContent='No boards on this account'; o.disabled=true; boardSelect.appendChild(o); }
+    boards.forEach(b=>{ const o=document.createElement('option'); o.value=b.id; o.textContent=b.name; boardSelect.appendChild(o); });
+    boardSelect.disabled = false;
+    if(boardSelect.id==='autoBoard' && state.autoBoardWant && boards.some(b=>b.id===state.autoBoardWant)) boardSelect.value = state.autoBoardWant;
+  }catch(e){
+    boardSelect.innerHTML=''; const o=document.createElement('option'); o.value=''; o.textContent='Could not load boards: '+e.message; o.disabled=true; boardSelect.appendChild(o);
+    toast('Could not load Pinterest boards: ' + e.message);
+  }
+}
+function renderBlogPickers(){
+  const activeId = state.blogs[0] ? state.blogs[0].id : '';
+  [['writerBlog','writerBlogId'],['autoBlog','autoBlogId']].forEach(([id, key])=>{
+    const sel = $(id); if(!sel) return;
+    const prev = key ? state[key] : sel.value;
+    sel.innerHTML='';
+    if(!state.blogs.length){
+      const o=document.createElement('option'); o.value=''; o.textContent='Connect Blogger first'; o.disabled=true; sel.appendChild(o); sel.disabled=true;
+    } else {
+      sel.disabled=false;
+      state.blogs.forEach(b=>{ const o=document.createElement('option'); o.value=b.id; o.textContent=b.name; sel.appendChild(o); });
+      const want = (key && state[key]) || prev || activeId;
+      if(want && state.blogs.some(b=>b.id===want)) sel.value = want; else sel.value = activeId;
+      if(key) state[key] = sel.value;
+    }
+  });
+  const wb = $('writerBlog'); if(wb) wb.onchange = ()=>{ state.writerBlogId = wb.value; save(); renderUsageLines(); };
+  const ab = $('autoBlog'); if(ab) ab.onchange = ()=>{ save(); renderUsageLines(); };
+}
+function renderPinPickers(){
+  const activeAcct = state.pinterestAccounts[0] ? state.pinterestAccounts[0].username : '';
+  [['pinAccount','pinAccount'],['autoAccount','autoAccount']].forEach(([id, key])=>{
+    const sel = $(id); if(!sel) return;
+    const prev = state[key] || sel.value;
+    sel.innerHTML='';
+    if(!state.pinterestAccounts.length){
+      const o=document.createElement('option'); o.value=''; o.textContent='Connect Pinterest first'; o.disabled=true; sel.appendChild(o); sel.disabled=true;
+    } else {
+      sel.disabled=false;
+      state.pinterestAccounts.forEach(a=>{ const o=document.createElement('option'); o.value=a.username; o.textContent=a.username; sel.appendChild(o); });
+      const want = prev || activeAcct;
+      if(want && state.pinterestAccounts.some(a=>a.username===want)) sel.value = want; else sel.value = activeAcct;
+      state[key] = sel.value;
+    }
+  });
+  const pa = $('pinAccount'); if(pa) pa.onchange = ()=>{ state.pinAccount = pa.value; save(); loadBoardsFor(pa.value, $('pinBoard')); renderUsageLines(); };
+  const aa = $('autoAccount'); if(aa) aa.onchange = ()=>{ state.autoAccount = aa.value; save(); loadBoardsFor(aa.value, $('autoBoard')); };
+  if(state.pinAccount) loadBoardsFor(state.pinAccount, $('pinBoard'));
+  if(state.autoAccount) loadBoardsFor(state.autoAccount, $('autoBoard'));
+}
+function renderUsageLines(){
+  const u = state.usage;
+  const wu = $('writerUsage');
+  if(wu){
+    if(!u) wu.textContent='';
+    else if(!state.blogs.length) wu.textContent='Connect Blogger first to publish articles.';
+    else {
+      const b = state.blogs.find(x=>x.id===(state.writerBlogId||u.active_blog_id)) || state.blogs[0];
+      wu.textContent = 'Today: '+(b.articles_today||0)+'/'+(b.articles_limit||u.articles_limit)+' articles used on '+(b.name||'this blog')+' — resets tomorrow.';
+    }
+  }
+  const pu = $('pinsUsage');
+  if(pu){
+    if(!u) pu.textContent='';
+    else if(!state.pinterestAccounts.length) pu.textContent='Connect Pinterest first to publish pins.';
+    else {
+      const a = state.pinterestAccounts.find(x=>x.username===(state.pinAccount||u.active_account)) || state.pinterestAccounts[0];
+      pu.textContent = 'Today: '+(a.pins_today||0)+'/'+(a.pins_limit||u.pins_limit)+' pins used on @'+(a.username||'this account')+' — resets tomorrow.';
+    }
+  }
+  const au = $('autoUsage');
+  if(au){
+    if(!u) au.textContent='';
+    else if(!state.blogs.length) au.textContent='Connect Blogger first — Auto Flow publishes to your active blog.';
+    else {
+      const b = state.blogs[0];
+      au.textContent = 'Today: '+(b.articles_today||0)+'/'+(b.articles_limit||u.articles_limit)+' articles used on '+(b.name||'this blog')+' — Auto Flow never goes past the daily limit.';
+    }
   }
 }
 // ---------- Daily Auto Flow (backend settings + real runs) ----------
-const PIN_BOARDS = ['Home Decor Ideas', 'Bedroom Ideas', 'Cozy Living', 'DIY Home', 'My Blog Posts'];
-// Auto Flow targets are real, never stale: the blog select shows only the
-// connected blog (or a disabled "Connect Blogger first"), and the board
-// select always lists the same 5 boards as the Pin Generator.
+// Auto Flow targets are real, never stale: the blog/account/board selects
+// show only what is actually connected, and boards load from Pinterest.
 function renderAutoTargets(){
-  const blog = $('autoBlog');
-  if(blog){
-    blog.innerHTML = '';
-    if(state.blogger && state.bloggerBlogName){
-      const o = document.createElement('option');
-      o.value = state.bloggerBlogId || state.bloggerBlogName;
-      o.textContent = state.bloggerBlogName;
-      blog.appendChild(o);
-      blog.disabled = false;
-    } else {
-      const o = document.createElement('option');
-      o.value = ''; o.textContent = 'Connect Blogger first'; o.disabled = true;
-      blog.appendChild(o);
-      blog.disabled = true;
-    }
-  }
-  const board = $('autoBoard');
-  if(board){
-    const prev = board.value;
-    board.innerHTML = '';
-    PIN_BOARDS.forEach(b => { const o = document.createElement('option'); o.value = b; o.textContent = b; board.appendChild(o); });
-    if(prev && PIN_BOARDS.includes(prev)) board.value = prev;
-  }
+  renderBlogPickers();
+  renderPinPickers();
 }
 async function loadAutoFlow(){
   try{
     const s = await api('/api/status');
-    if(s.auto){ state.autoOn=!!s.auto.auto_on; state.autoTime=s.auto.run_time||'08:00'; state.autoNiche=s.auto.niche||state.autoNiche; }
+    if(s.auto){ state.autoOn=!!s.auto.auto_on; state.autoTime=s.auto.run_time||'08:00'; state.autoNiche=s.auto.niche||state.autoNiche; if(s.auto.blog_id) state.autoBlogId=s.auto.blog_id; if(s.auto.pinterest_account) state.autoAccount=s.auto.pinterest_account; if(s.auto.board) state.autoBoardWant=s.auto.board; if(s.auto.articles_per_day) $('autoCount').value=String(s.auto.articles_per_day); }
+    if(s.blogs) state.blogs = s.blogs;
+    if(s.pinterest_accounts) state.pinterestAccounts = s.pinterest_accounts;
+    if(s.usage) state.usage = s.usage;
+    if(s.limits) state.limits = s.limits;
     if(s.runs && s.runs.length){
       const html = s.runs.map(r=>'<div>'+esc((r.created_at||'').slice(0,16).replace('T',' ')+' — '+r.niche+' → '+r.status+(r.blogger_url?' — '+r.blogger_url:'')+(r.error?' — '+r.error:''))+'</div>').join('');
       if($('runLog')) $('runLog').innerHTML=html;
@@ -548,7 +690,7 @@ async function loadAutoFlow(){
 async function toggleAuto(){
   state.autoOn=$('autoToggle').checked; state.autoTime=$('autoTime').value||'08:00'; state.autoNiche=$('autoNiche').value.trim()||'Cozy home decor'; save(); renderAuto();
   try{
-    await api('/api/autoflow', {method:'POST', body: JSON.stringify({niche: state.autoNiche, run_time: state.autoTime, articles_per_day: Number($('autoCount').value)||1, auto_on: state.autoOn})});
+    await api('/api/autoflow', {method:'POST', body: JSON.stringify({niche: state.autoNiche, run_time: state.autoTime, articles_per_day: Number($('autoCount').value)||1, blog_id: $('autoBlog').value || null, pinterest_account: state.autoAccount || null, board: $('autoBoard').value || null, auto_on: state.autoOn})});
     toast(state.autoOn ? 'Auto Flow is ON — saved on the server, runs daily at '+state.autoTime+'.' : 'Auto Flow is OFF — saved on the server.');
   }catch(e){ toast('Could not save Auto Flow on the server: '+e.message); }
   log('Auto Flow '+(state.autoOn?'turned ON — daily '+state.autoTime+' — niche: '+state.autoNiche:'turned OFF.'));
