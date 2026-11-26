@@ -209,15 +209,6 @@
       <div class="row"><button class="btn small" onclick="connectPinterest()">Connect Pinterest</button></div>
       <button class="btn small ghost" onclick="disconnect('pinterest')" style="margin-top:8px">Disconnect</button></div>
   </div>
-  <div class="card" style="margin-top:14px"><h3>Owner Settings — Client IDs</h3>
-    <p class="small muted">OAuth Client IDs and secrets live as Worker secrets on the BlogNeo backend — they are never stored in the browser or in the code. If Connect shows a "not configured" message, the owner still has to add the IDs on the server (see README — the 2 owner steps).</p>
-    <label for="googleId">Google Client ID (for Blogger) — informational only</label>
-    <input id="googleId" placeholder="Set as Worker secret GOOGLE_CLIENT_ID on blogneo-api (see README)">
-    <label for="pinId">Pinterest App ID (Client ID) — informational only</label>
-    <input id="pinId" placeholder="Set as Worker secret PINTEREST_CLIENT_ID on blogneo-api (see README)">
-    <div class="row" style="margin-top:12px"><button class="btn small" onclick="saveOwnerIds()">Save Owner IDs</button><button class="btn small ghost" onclick="clearOwnerIds()">Clear</button></div>
-    <p class="small muted" id="ownerNote">Client IDs are Worker secrets now — nothing is saved in this browser.</p>
-  </div>
   <details><summary>What happens when I click Connect?</summary>
     <p>Blogger opens Google's real authorize page (<code>accounts.google.com/o/oauth2/v2/auth</code>) with the Blogger scope, through the BlogNeo API server. Pinterest opens the real Pinterest authorize page (<code>pinterest.com/oauth</code>). If the owner has not set up the Google / Pinterest app on the server yet, BlogNeo will say so plainly instead of pretending to connect. After you approve on Google / Pinterest, you return to BlogNeo and the connection is verified by the server.</p>
   </details>
