@@ -488,9 +488,15 @@ async function loadBlogPicker(){
       if(!state.blogs.length){ list.innerHTML = '<p class="small muted">No blog added yet — pick one below.</p>'; }
       else list.innerHTML = state.blogs.map((b,i)=>{
         const active = i===0;
-        return '<div class="row" style="align-items:center;margin-top:6px"><span style="flex:1">'+esc(b.name)+(b.url?' <span class="small muted">'+esc(b.url)+'</span>':'')+'</span>'
-          + (active ? '<span class="badge on">Active</span>' : '<button class="btn small ghost" onclick="selectBlog(\''+esc(b.id)+'\')">Set active</button>')
-          + ' <button class="btn small ghost" onclick="removeBlog(\''+esc(b.id)+'\')">Remove</button></div>';
+        // Two lines: name + badge + Remove on one row (badge/buttons never
+        // stretch), URL on its own wrapping line — a long URL used to run
+        // under the Active badge and get hidden behind it.
+        return '<div style="margin-top:8px;padding-bottom:8px;border-bottom:1px solid var(--line)">'
+          + '<div class="row" style="align-items:center;gap:8px"><span style="flex:1;min-width:0;overflow-wrap:anywhere">'+esc(b.name)+'</span>'
+          + (active ? '<span class="badge on" style="flex:0 0 auto;min-width:0">Active</span>' : '<button class="btn small ghost" style="flex:0 0 auto;min-width:0" onclick="selectBlog(\''+esc(b.id)+'\')">Set active</button>')
+          + ' <button class="btn small ghost" style="flex:0 0 auto;min-width:0" onclick="removeBlog(\''+esc(b.id)+'\')">Remove</button></div>'
+          + (b.url ? '<div class="small muted" style="overflow-wrap:anywhere;margin-top:2px">'+esc(b.url)+'</div>' : '')
+          + '</div>';
       }).join('');
     }
     const sel = $('blogSelect');
@@ -553,9 +559,15 @@ function renderPinAccountList(){
   const limit = (state.limits && state.limits.pinterest_accounts) || (state.plan==='pro' ? 5 : 1);
   if(!state.pinterestAccounts.length){ list.innerHTML = '<p class="small muted">No Pinterest account connected yet.</p>'; }
   else list.innerHTML = state.pinterestAccounts.map((a,i)=>{
-    return '<div class="row" style="align-items:center;margin-top:6px"><span style="flex:1">'+esc(a.username)+(a.url?' <span class="small muted">'+esc(a.url)+'</span>':'')+'</span>'
-      + (i===0 ? '<span class="badge on">Active</span>' : '')
-      + ' <button class="btn small ghost" onclick="removePinterestAccount(\''+esc(a.username)+'\')">Remove</button></div>';
+    // Two lines: username + badge + Remove on one row (badge/buttons never
+    // stretch), URL on its own wrapping line — a long URL used to run under
+    // the Active badge and get hidden behind it.
+    return '<div style="margin-top:8px;padding-bottom:8px;border-bottom:1px solid var(--line)">'
+      + '<div class="row" style="align-items:center;gap:8px"><span style="flex:1;min-width:0;overflow-wrap:anywhere">'+esc(a.username)+'</span>'
+      + (i===0 ? '<span class="badge on" style="flex:0 0 auto;min-width:0">Active</span>' : '')
+      + ' <button class="btn small ghost" style="flex:0 0 auto;min-width:0" onclick="removePinterestAccount(\''+esc(a.username)+'\')">Remove</button></div>'
+      + (a.url ? '<div class="small muted" style="overflow-wrap:anywhere;margin-top:2px">'+esc(a.url)+'</div>' : '')
+      + '</div>';
   }).join('');
   const note = $('pinLimitNote');
   if(note) note.textContent = state.plan==='pro'
