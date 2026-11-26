@@ -131,6 +131,19 @@ footer{border-top:1px solid var(--line);padding:28px 0 34px;color:var(--muted);f
 details{background:#08170f;border:1px solid var(--line);border-radius:12px;padding:12px 14px;margin-top:12px}
 details summary{cursor:pointer;font-weight:800}
 
+/* ---------- Adsterra earnings ---------- */
+.ads-range{display:flex;gap:6px;align-items:center;flex-wrap:wrap}
+.ads-range button.chosen{background:var(--gold);color:#1a1405;border-color:var(--gold)}
+.ads-nums{display:grid;grid-template-columns:repeat(6,1fr);gap:10px;margin-top:12px}
+@media(max-width:760px){.ads-nums{grid-template-columns:repeat(3,1fr)}}
+.ads-nums small{display:block;color:var(--muted);font-size:11px;text-transform:uppercase;letter-spacing:.5px}
+.ads-nums b{font-size:18px}
+.ads-bars{display:flex;align-items:flex-end;gap:3px;height:64px;margin-top:16px}
+.ads-bar{flex:1;display:flex;align-items:flex-end;height:100%}
+.ads-bar i{display:block;width:100%;background:linear-gradient(180deg,var(--gold2),var(--gold));border-radius:3px 3px 0 0;min-height:2px}
+.ads-bars-foot{display:flex;justify-content:space-between;color:var(--muted);font-size:12px;margin-top:6px;gap:8px;flex-wrap:wrap}
+.ads-empty{padding:22px 6px;text-align:center;color:var(--muted);line-height:1.6}
+
 /* ---------- Profile ---------- */
 .profile-btn{display:inline-flex;align-items:center;gap:8px;background:transparent;border:1px solid var(--line);border-radius:999px;padding:4px 12px 4px 4px;cursor:pointer;color:var(--text);font:inherit}
 .profile-btn:hover{border-color:var(--gold)}
