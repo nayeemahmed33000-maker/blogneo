@@ -816,11 +816,11 @@ function renderAutoTargets(){
 async function loadAutoFlow(){
   try{
     const s = await api('/api/status');
-    if(s.auto){ state.autoOn=!!s.auto.auto_on; state.autoTime=s.auto.run_time||'08:00'; state.autoNiche=s.auto.niche||state.autoNiche; if(s.auto.blog_id) state.autoBlogId=s.auto.blog_id; if(s.auto.pinterest_account) state.autoAccount=s.auto.pinterest_account; if(s.auto.board) state.autoBoardWant=s.auto.board; if(s.auto.articles_per_day) $('autoCount').value=String(s.auto.articles_per_day); }
+    if(s.auto){ state.autoOn=!!s.auto.auto_on; state.autoTime=s.auto.run_time||'08:00'; state.autoNiche=s.auto.niche||state.autoNiche; if(s.auto.blog_id) state.autoBlogId=s.auto.blog_id; if(s.auto.pinterest_account) state.autoAccount=s.auto.pinterest_account; if(s.auto.board) state.autoBoardWant=s.auto.board; $('autoCount').value = s.auto.articles_per_day ? String(s.auto.articles_per_day) : '0'; }
     if(s.blogs) state.blogs = s.blogs;
     if(s.pinterest_accounts) state.pinterestAccounts = s.pinterest_accounts;
     if(s.usage) state.usage = s.usage;
-    if(s.limits) state.limits = s.limits;
+    if(s.limits){ state.limits = s.limits; const o0 = document.querySelector('#autoCount option[value="0"]'); if(o0) o0.textContent = 'Plan limit — ' + (s.limits.articles_per_blog_per_day || 5) + '/day'; }
     if(s.runs && s.runs.length){
       const html = s.runs.map(r=>'<div>'+esc((r.created_at||'').slice(0,16).replace('T',' ')+' — '+r.niche+' → '+r.status+(r.blogger_url?' — '+r.blogger_url:'')+(r.error?' — '+r.error:''))+'</div>').join('');
       if($('runLog')) $('runLog').innerHTML=html;
@@ -831,7 +831,7 @@ async function loadAutoFlow(){
 async function toggleAuto(){
   state.autoOn=$('autoToggle').checked; state.autoTime=$('autoTime').value||'08:00'; state.autoNiche=$('autoNiche').value.trim()||'Cozy home decor'; save(); renderAuto();
   try{
-    await api('/api/autoflow', {method:'POST', body: JSON.stringify({niche: state.autoNiche, run_time: state.autoTime, articles_per_day: Number($('autoCount').value)||1, blog_id: $('autoBlog').value || null, pinterest_account: state.autoAccount || null, board: $('autoBoard').value || null, auto_on: state.autoOn})});
+    await api('/api/autoflow', {method:'POST', body: JSON.stringify({niche: state.autoNiche, run_time: state.autoTime, articles_per_day: Number($('autoCount').value)||0, blog_id: $('autoBlog').value || null, pinterest_account: state.autoAccount || null, board: $('autoBoard').value || null, auto_on: state.autoOn})});
     toast(state.autoOn ? 'Auto Flow is ON — saved on the server, runs daily at '+state.autoTime+'.' : 'Auto Flow is OFF — saved on the server.');
   }catch(e){ toast('Could not save Auto Flow on the server: '+e.message); }
   log('Auto Flow '+(state.autoOn?'turned ON — daily '+state.autoTime+' — niche: '+state.autoNiche:'turned OFF.'));
@@ -842,10 +842,10 @@ function renderAuto(){
   $('autoTime').value=state.autoTime; $('autoNiche').value=state.autoNiche;
   $('autoState').textContent = state.autoOn ? 'Auto Flow is ON' : 'Auto Flow is OFF';
   const b=$('autoBadge'); b.textContent=state.autoOn?'ON':'OFF'; b.className='badge '+(state.autoOn?'on':'off');
-  $('nextRun').textContent = state.autoOn ? 'Next run: tomorrow at '+state.autoTime+' (Dhaka time) — niche "'+state.autoNiche+'", '+($('autoCount').value||'1')+' article(s) per day. Runs on the server (Pro plan only).' : 'Next run: — (turn Auto Flow ON to schedule)';
+  const effCount = Number($('autoCount').value) || (state.limits ? state.limits.articles_per_blog_per_day : 5);
+  $('nextRun').textContent = state.autoOn ? 'Next run: tomorrow at '+state.autoTime+' (Dhaka time) — niche "'+state.autoNiche+'", up to '+effCount+' article(s) per day. Runs on the server every day.' : 'Next run: — (turn Auto Flow ON to schedule)';
 }
 async function runNow(){
-  if(state.plan!=='pro'){ toast('Daily auto run needs the Pro plan. Upgrade to Pro first.'); go('subscription'); return; }
   try{
     toast('Running the real auto flow on the server — this takes up to ~90 seconds…');
     const r = await api('/api/cron/run-now', {method:'POST', body: '{}'});
