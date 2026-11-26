@@ -332,15 +332,92 @@ function drawImage(canvas, title, sub, idx){
   wrapText(ctx, title, 28, H*.42, W-56, Math.round(W*.07));
   ctx.fillStyle='#cfe3d4'; ctx.font=Math.round(W*.035)+'px Arial';
   wrapText(ctx, sub, 28, H-58, W-56, Math.round(W*.05));
-  ctx.fillStyle=acc; ctx.font='bold '+Math.round(W*.03)+'px Arial'; ctx.fillText('BLOGNEO  •  GENERATED IMAGE', 28, 44);
+}
+// Expert pin overlay: photo full-bleed, headline in bold white with a
+// soft shadow in the lower third, over a LIGHT bottom gradient (bottom
+// 35%, max alpha 0.6). No label, no heavy band — the photo stays visible.
+function drawPinPhoto(canvas, img, headline){
+  const c=canvas, ctx=c.getContext('2d');
+  const s=Math.max(c.width/img.width, c.height/img.height);
+  const dw=img.width*s, dh=img.height*s;
+  ctx.drawImage(img,(c.width-dw)/2,(c.height-dh)/2,dw,dh);
+  const g=ctx.createLinearGradient(0, c.height*0.65, 0, c.height);
+  g.addColorStop(0,'rgba(0,0,0,0)'); g.addColorStop(1,'rgba(0,0,0,0.6)');
+  ctx.fillStyle=g; ctx.fillRect(0, c.height*0.65, c.width, c.height*0.35);
+  ctx.textAlign='left';
+  ctx.shadowColor='rgba(0,0,0,0.55)'; ctx.shadowBlur=18; ctx.shadowOffsetY=3;
+  ctx.fillStyle='#fff'; ctx.font='bold '+Math.round(c.width*0.06)+'px Arial';
+  wrapText(ctx, headline, 40, c.height*0.78, c.width-80, Math.round(c.width*0.075));
+  ctx.shadowColor='transparent'; ctx.shadowBlur=0; ctx.shadowOffsetY=0;
 }
 function makeCanvas(w,h){ const c=document.createElement('canvas'); c.width=w; c.height=h; c.className='art-canvas'; return c; }
 
 // ---------- Article Writer (REAL AI first, template fallback) ----------
 let currentArticle='';
 let currentArticleMeta = null; // {title, slug, meta_description, image}
-let currentPinImage = null; // base64 of the AI image generated for the pins (flux, /api/generate-image)
+let currentPinImage = null; // base64 of the SELECTED pin's AI image (flux, /api/generate-image)
 let currentPinImages = []; // one DIFFERENT AI image per pin (3 pins = 3 photos)
+let currentPins = []; // structured pin concepts from /api/pins [{headline,title,description,alt_text,tags}]
+let selectedPin = 0;
+const PIN_ANGLES = ['warm lighting and soft textures', 'smart storage and cozy fabrics', 'reading nook by the window'];
+const PIN_SUBS = ['Save this for later', 'Simple ideas, big difference', 'Full guide on the blog'];
+// Template fallback concepts (one per image angle) — used until the AI
+// copy arrives, and if /api/pins ever fails. Never an empty pin.
+function pinConceptsFor(topic){
+  const t = topic.trim();
+  return PIN_ANGLES.map((a, i)=>{
+    const angleTitle = a.split(' ').map((w)=>w[0].toUpperCase()+w.slice(1)).join(' ');
+    return {
+      headline: t.length > 48 ? t.slice(0, 48).replace(/\s\S*$/, '') : t,
+      title: t + ' — ' + angleTitle,
+      description: 'Discover ' + t.toLowerCase() + ' with ' + a + ' — simple, practical ideas you can try today. Save this pin for later and visit the blog for the full guide, tips and FAQ.',
+      alt_text: t + ' — ' + a,
+      tags: pinSeoFor(t).tags.split(' ')
+    };
+  });
+}
+function renderPinCards(topic){
+  const box = $('pinDesigns'); box.innerHTML = '';
+  currentPins.forEach((p, i)=>{
+    const w = document.createElement('div');
+    w.className = 'pin-card' + (i === selectedPin ? ' selected' : '');
+    w.dataset.i = i;
+    w.onclick = ()=> selectPin(i);
+    const c = document.createElement('canvas');
+    c.width = 1000; c.height = 1500; c.className = 'pin-canvas';
+    drawImage(c, topic, PIN_SUBS[i] + ' — Pin ' + (i+1), i);
+    w.appendChild(c);
+    const txt = document.createElement('div'); txt.className = 'pin-card-text';
+    txt.innerHTML = '<p><b>Title:</b> <span class="pc-title"></span></p>' +
+      '<p><b>Description:</b> <span class="pc-desc"></span></p>' +
+      '<p><b>Hashtags:</b> <span class="pc-tags"></span></p>';
+    txt.querySelector('.pc-title').textContent = p.title;
+    txt.querySelector('.pc-desc').textContent = p.description;
+    txt.querySelector('.pc-tags').textContent = (p.tags || []).join(' ');
+    w.appendChild(txt);
+    const cap = document.createElement('p');
+    cap.className = 'small muted';
+    cap.textContent = 'Pin ' + (i+1) + ' — 1000 × 1500 • ' + PIN_SUBS[i];
+    w.appendChild(cap);
+    const badge = document.createElement('p');
+    badge.className = 'pin-selected-badge';
+    badge.textContent = '✓ Selected — this pin will publish';
+    w.appendChild(badge);
+    box.appendChild(w);
+  });
+}
+function selectPin(i){
+  if(!currentPins[i]) return;
+  selectedPin = i;
+  const p = currentPins[i];
+  $('pinTitle').textContent = p.title;
+  $('pinDesc').textContent = p.description;
+  $('pinTags').textContent = (p.tags || []).join(' ');
+  currentPinImage = currentPinImages[i] || currentPinImages[0] || currentPinImage;
+  document.querySelectorAll('#pinDesigns .pin-card').forEach((el, j)=>{
+    el.classList.toggle('selected', j === i);
+  });
+}
 function articleTextFor(topic){
   const t=topic.trim()||'Cozy home decor';
   const slug=slugify(t);
@@ -431,50 +508,40 @@ async function generatePins(){
   const topic=$('pinTopic').value.trim();
   if(!topic){ toast('Please enter a topic for the pins.'); return; }
   $('pinOut').style.display='block';
-  const box=$('pinDesigns'); box.innerHTML='';
-  const subs=['Save this for later','Simple ideas, big difference','Full guide on the blog'];
-  for(let i=0;i<3;i++){ const w=document.createElement('div'); const c=document.createElement('canvas'); c.width=1000; c.height=1500; c.className='pin-canvas'; drawImage(c, topic, subs[i]+' — Pin '+(i+1), i); w.appendChild(c); const p=document.createElement('p'); p.className='small muted'; p.textContent='Pin '+(i+1)+' — 1000 × 1500 • '+subs[i]; w.appendChild(p); box.appendChild(w); }
-  let seo=pinSeoFor(topic), sourceLabel=' (template SEO)';
+  selectedPin = 0;
+  currentPinImages = []; currentPinImage = null;
+  // Template concepts first so the cards are never empty, then AI copy.
+  currentPins = pinConceptsFor(topic);
+  renderPinCards(topic);
+  selectPin(0);
+  let sourceLabel=' (template SEO)';
   try{
     const r = await api('/api/pins', {method:'POST', body: JSON.stringify({topic})});
-    if(r.draft){ $('pinTitle').textContent='AI pin concepts ready — see below'; $('pinDesc').textContent=r.draft.slice(0,500); $('pinTags').textContent=pinSeoFor(topic).tags; sourceLabel=' (AI pin copy: '+r.generated_by+')'; }
-  }catch(e){ seo=pinSeoFor(topic); $('pinTitle').textContent=seo.title; $('pinDesc').textContent=seo.desc; $('pinTags').textContent=seo.tags; }
-  if(!$('pinTitle').textContent){ $('pinTitle').textContent=seo.title; $('pinDesc').textContent=seo.desc; $('pinTags').textContent=seo.tags; }
+    if(r && Array.isArray(r.pins) && r.pins.length){
+      currentPins = r.pins.slice(0, 3);
+      while(currentPins.length < 3) currentPins.push(pinConceptsFor(topic)[currentPins.length]);
+      renderPinCards(topic);
+      selectPin(0);
+      sourceLabel=' (AI pin copy: '+(r.generated_by || 'Workers AI')+')';
+    }
+  }catch(e){ /* keep template concepts */ }
   toast('3 pins generated for "'+topic+'"'+sourceLabel+'.'); log('Pins generated: '+topic+sourceLabel);
-  // Real AI images for the pins (flux via /api/generate-image) — one
-  // DIFFERENT photo per pin, so the 3 pins never share the same image.
-  // The canvas placeholders above stay visible until each AI image
-  // arrives, so a slow or failed image call never breaks pin generation.
-  // publishPins() sends the first pin's image (not the article cover).
-  const pinAngles = ['warm lighting and soft textures',
-    'smart storage and cozy fabrics', 'reading nook by the window'];
+  // 3 different AI photos, one per pin, in parallel (existing angles).
+  // Each photo gets its own pin's headline in the expert overlay.
   try{
-    const results = await Promise.all(pinAngles.map((a)=>
+    const results = await Promise.all(PIN_ANGLES.map((a)=>
       api('/api/generate-image', {method:'POST', body: JSON.stringify({topic: topic + ', ' + a})}).catch(()=>null)));
     const good = results.filter((im)=> im && im.image_base64);
     if(good.length){
       currentPinImages = good.map((im)=> im.image_base64);
-      currentPinImage = currentPinImages[0];
+      currentPinImage = currentPinImages[selectedPin] || currentPinImages[0];
       const canvases = document.querySelectorAll('#pinDesigns .pin-canvas');
       good.forEach((im, i)=>{
         const img = new Image();
-        img.onload = ()=>{
-          const c = canvases[i]; if(!c) return;
-          const ctx = c.getContext('2d');
-          const s = Math.max(c.width / img.width, c.height / img.height);
-          const dw = img.width * s, dh = img.height * s;
-          ctx.drawImage(img, (c.width - dw) / 2, (c.height - dh) / 2, dw, dh);
-          const g2 = ctx.createLinearGradient(0, c.height * 0.35, 0, c.height);
-          g2.addColorStop(0, 'rgba(7,18,14,0)'); g2.addColorStop(1, 'rgba(7,18,14,0.82)');
-          ctx.fillStyle = g2; ctx.fillRect(0, c.height * 0.35, c.width, c.height * 0.65);
-          ctx.fillStyle = '#f0cd5a'; ctx.font = 'bold ' + Math.round(c.width * 0.03) + 'px Arial';
-          ctx.textAlign = 'left'; ctx.fillText('BLOGNEO  •  GENERATED IMAGE', 28, 44);
-          ctx.fillStyle = '#fff'; ctx.font = 'bold ' + Math.round(c.width * 0.055) + 'px Arial';
-          wrapText(ctx, topic, 28, c.height * 0.42, c.width - 56, Math.round(c.width * 0.07));
-        };
+        img.onload = ()=>{ const c = canvases[i]; if(c) drawPinPhoto(c, img, currentPins[i] ? currentPins[i].headline : topic); };
         img.src = 'data:' + (im.image_content_type || 'image/jpeg') + ';base64,' + im.image_base64;
       });
-      document.querySelectorAll('#pinDesigns p.small').forEach((p)=>{ p.textContent = p.textContent.replace('1000 × 1500', 'AI image 1000 × 1500'); });
+      document.querySelectorAll('#pinDesigns .pin-card > p.small').forEach((p)=>{ p.textContent = p.textContent.replace('1000 × 1500', 'AI image 1000 × 1500'); });
       toast(good.length + ' different AI pin images ready for "'+topic+'".');
     }
   }catch(e){ /* keep the canvas placeholders */ }
@@ -483,9 +550,12 @@ function buildPinsFromArticle(){ const t=$('topic').value.trim(); if(t){ $('pinT
 async function publishPins(){
   if($('pinOut').style.display==='none'){ toast('Generate pins first.'); return; }
   if(!state.pinterest){ toast('Pinterest is not connected — connect it in Connections first.'); go('connections'); return; }
+  // Never publish a placeholder title: the title must be a real pin title.
+  const pinTitleText = ($('pinTitle').textContent || '').trim();
+  if(!pinTitleText || pinTitleText.toLowerCase().indexOf('concepts ready') !== -1){ toast('Pin title is not ready yet — generate the pins again.'); return; }
   try{
     const boardSel = $('pinBoard');
-    const r = await api('/api/pinterest/publish', {method:'POST', body: JSON.stringify({title: $('pinTitle').textContent, description: $('pinDesc').textContent, account: state.pinAccount || undefined, board_id: (boardSel && boardSel.value) || null, image_base64: currentPinImage || (currentArticleMeta&&currentArticleMeta.image&&currentArticleMeta.image.image_base64) || null})});
+    const r = await api('/api/pinterest/publish', {method:'POST', body: JSON.stringify({title: pinTitleText, description: $('pinDesc').textContent, account: state.pinAccount || undefined, board_id: (boardSel && boardSel.value) || null, image_base64: currentPinImage || (currentArticleMeta&&currentArticleMeta.image&&currentArticleMeta.image.image_base64) || null})});
     toast('Pin published to Pinterest: ' + r.url + (r.usage ? ' (' + r.usage.pins_today + '/' + r.usage.pins_limit + ' pins today)' : ''));
     log('Published pin to Pinterest: ' + r.url);
   }catch(e){ toast('Pin publish failed: '+e.message); log('Pinterest publish failed: '+e.message); }
