@@ -339,6 +339,7 @@ function makeCanvas(w,h){ const c=document.createElement('canvas'); c.width=w; c
 // ---------- Article Writer (REAL AI first, template fallback) ----------
 let currentArticle='';
 let currentArticleMeta = null; // {title, slug, meta_description, image}
+let currentPinImage = null; // base64 of the AI image generated for the pins (flux, /api/generate-image)
 function articleTextFor(topic){
   const t=topic.trim()||'Cozy home decor';
   const slug=slugify(t);
@@ -439,6 +440,36 @@ async function generatePins(){
   }catch(e){ seo=pinSeoFor(topic); $('pinTitle').textContent=seo.title; $('pinDesc').textContent=seo.desc; $('pinTags').textContent=seo.tags; }
   if(!$('pinTitle').textContent){ $('pinTitle').textContent=seo.title; $('pinDesc').textContent=seo.desc; $('pinTags').textContent=seo.tags; }
   toast('3 pins generated for "'+topic+'"'+sourceLabel+'.'); log('Pins generated: '+topic+sourceLabel);
+  // Real AI image for the pins (flux via /api/generate-image). The canvas
+  // placeholders above stay visible until the AI image arrives, so a slow
+  // or failed image call never breaks pin generation. The photo is drawn
+  // full-bleed onto each pin canvas with the headline re-drawn on top,
+  // and publishPins() sends this image (not the article cover).
+  try{
+    const im = await api('/api/generate-image', {method:'POST', body: JSON.stringify({topic})});
+    if(im && im.image_base64){
+      currentPinImage = im.image_base64;
+      const img = new Image();
+      img.onload = ()=>{
+        document.querySelectorAll('#pinDesigns .pin-canvas').forEach((c)=>{
+          const ctx = c.getContext('2d');
+          const s = Math.max(c.width / img.width, c.height / img.height);
+          const dw = img.width * s, dh = img.height * s;
+          ctx.drawImage(img, (c.width - dw) / 2, (c.height - dh) / 2, dw, dh);
+          const g2 = ctx.createLinearGradient(0, c.height * 0.35, 0, c.height);
+          g2.addColorStop(0, 'rgba(7,18,14,0)'); g2.addColorStop(1, 'rgba(7,18,14,0.82)');
+          ctx.fillStyle = g2; ctx.fillRect(0, c.height * 0.35, c.width, c.height * 0.65);
+          ctx.fillStyle = '#f0cd5a'; ctx.font = 'bold ' + Math.round(c.width * 0.03) + 'px Arial';
+          ctx.textAlign = 'left'; ctx.fillText('BLOGNEO  •  GENERATED IMAGE', 28, 44);
+          ctx.fillStyle = '#fff'; ctx.font = 'bold ' + Math.round(c.width * 0.055) + 'px Arial';
+          wrapText(ctx, topic, 28, c.height * 0.42, c.width - 56, Math.round(c.width * 0.07));
+        });
+        document.querySelectorAll('#pinDesigns p.small').forEach((p)=>{ p.textContent = p.textContent.replace('1000 × 1500', 'AI image 1000 × 1500'); });
+        toast('AI pin image ready for "'+topic+'".');
+      };
+      img.src = 'data:' + (im.image_content_type || 'image/jpeg') + ';base64,' + im.image_base64;
+    }
+  }catch(e){ /* keep the canvas placeholders */ }
 }
 function buildPinsFromArticle(){ const t=$('topic').value.trim(); if(t){ $('pinTopic').value=t; } generatePins(); }
 async function publishPins(){
@@ -446,7 +477,7 @@ async function publishPins(){
   if(!state.pinterest){ toast('Pinterest is not connected — connect it in Connections first.'); go('connections'); return; }
   try{
     const boardSel = $('pinBoard');
-    const r = await api('/api/pinterest/publish', {method:'POST', body: JSON.stringify({title: $('pinTitle').textContent, description: $('pinDesc').textContent, account: state.pinAccount || undefined, board_id: (boardSel && boardSel.value) || null, image_base64: (currentArticleMeta&&currentArticleMeta.image&&currentArticleMeta.image.image_base64)||null})});
+    const r = await api('/api/pinterest/publish', {method:'POST', body: JSON.stringify({title: $('pinTitle').textContent, description: $('pinDesc').textContent, account: state.pinAccount || undefined, board_id: (boardSel && boardSel.value) || null, image_base64: currentPinImage || (currentArticleMeta&&currentArticleMeta.image&&currentArticleMeta.image.image_base64) || null})});
     toast('Pin published to Pinterest: ' + r.url + (r.usage ? ' (' + r.usage.pins_today + '/' + r.usage.pins_limit + ' pins today)' : ''));
     log('Published pin to Pinterest: ' + r.url);
   }catch(e){ toast('Pin publish failed: '+e.message); log('Pinterest publish failed: '+e.message); }
