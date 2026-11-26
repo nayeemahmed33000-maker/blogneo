@@ -306,6 +306,12 @@ function renderBadges(){
   const pb=$('planBadge');
   if(pb){ pb.textContent = state.plan==='pro'?'Pro':state.plan==='pro-pending'?'Pro — Pending':'Free'; pb.className='badge '+(state.plan==='pro'?'on':'off'); }
   if($('planNote')) $('planNote').textContent = state.plan==='pro-pending' ? 'Payment sent — Pro activates within 24h after confirmation.' : '';
+  // Connect buttons show the connection state: once connected they read
+  // "✓ Connected" (green, disabled) instead of still saying "Connect …".
+  const cb=$('btnConnectBlogger');
+  if(cb){ if(state.blogger){ cb.textContent='✓ Connected'; cb.disabled=true; cb.classList.add('connected'); } else { cb.textContent='Connect Blogger'; cb.disabled=false; cb.classList.remove('connected'); } }
+  const cp=$('btnConnectPinterest');
+  if(cp){ if(state.pinterest){ cp.textContent='✓ Connected'; cp.disabled=true; cp.classList.add('connected'); } else { cp.textContent='Connect Pinterest'; cp.disabled=false; cp.classList.remove('connected'); } }
 }
 
 // ---------- Canvas images (fallback when the AI image is unavailable) ----------
@@ -449,14 +455,19 @@ function copyPinSeo(){ const s=$('pinTitle').textContent+'\n'+$('pinDesc').textC
 
 // ---------- Connections (REAL backend state — no fake "mark Connected") ----------
 function connectBlogger(){
+  const b=$('btnConnectBlogger'); if(b){ b.textContent='Connecting…'; b.disabled=true; }
   window.open(API + '/api/blogger/auth?device=' + encodeURIComponent(deviceId()), '_blank');
   toast('Google authorize page opened in a new tab. After approving, you will return to BlogNeo.');
   log('Blogger Connect opened (Google OAuth via BlogNeo API).');
+  // If the user abandons the OAuth tab, restore the button after a minute.
+  setTimeout(()=>renderBadges(), 60000);
 }
 function connectPinterest(){
+  const b=$('btnConnectPinterest'); if(b){ b.textContent='Connecting…'; b.disabled=true; }
   window.open(API + '/api/pinterest/auth?device=' + encodeURIComponent(deviceId()), '_blank');
   toast('Pinterest authorize page opened in a new tab. After approving, you will return to BlogNeo.');
   log('Pinterest Connect opened (Pinterest OAuth via BlogNeo API).');
+  setTimeout(()=>renderBadges(), 60000);
 }
 async function disconnect(which){
   try{ await api('/api/' + which + '/disconnect', {method:'POST', body: '{}'}); }catch(e){ /* already disconnected */ }
@@ -469,6 +480,7 @@ async function disconnect(which){
   if(which==='pinterest'){
     state.pinterestAccounts=[]; state.pinterestName=''; state.boardsByAccount={}; state.pinAccount=''; state.autoAccount='';
     const pl=$('pinAccountList'); if(pl) pl.innerHTML='';
+    const ab=$('btnAddPinterest'); if(ab) ab.style.display='none';
   }
   toast((which==='blogger'?'Blogger':'Pinterest')+' disconnected.');
   log((which==='blogger'?'Blogger':'Pinterest')+' disconnected.');
@@ -573,6 +585,10 @@ function renderPinAccountList(){
   if(note) note.textContent = state.plan==='pro'
     ? 'Pro plan — '+state.pinterestAccounts.length+'/'+limit+' Pinterest accounts connected (6 pins/day each). Connect another account with the button above.'
     : 'Free plan — '+state.pinterestAccounts.length+'/'+limit+' Pinterest account connected (3 pins/day). Upgrade to Pro for up to 5 accounts.';
+  // Pro users with room for another account get a second Connect button
+  // (the main one reads "✓ Connected" once the first account is in).
+  const addBtn = $('btnAddPinterest');
+  if(addBtn) addBtn.style.display = (state.plan==='pro' && state.pinterestAccounts.length>0 && state.pinterestAccounts.length<limit) ? '' : 'none';
 }
 async function removePinterestAccount(username){
   if(!username) return;
