@@ -42,14 +42,18 @@ function isAuthed(){ return !!getToken(); }
 function renderAuthUI(){
   const email = getEmail();
   const authed = isAuthed();
-  $('authEmail').style.display = authed && email ? '' : 'none';
-  $('authEmail').textContent = authed ? email : '';
+  const label = authed ? (state.profileName || email) : '';
+  const btn = $('authProfileBtn');
+  if(btn) btn.style.display = authed && email ? '' : 'none';
+  $('authEmail').textContent = label;
+  const av = $('authAvatar');
+  if(av) av.textContent = (label || 'B').trim().charAt(0).toUpperCase();
   $('btnLoginNav').style.display = authed ? 'none' : '';
   $('btnLogoutNav').style.display = authed ? '' : 'none';
   const gb = $('guestBanner');
   if (gb) gb.style.display = (!authed && isGuest()) ? '' : 'none';
 }
-let state = {blogger:false, bloggerBlogId:'', bloggerBlogName:'', bloggerLocked:false, pinterest:false, pinterestName:'', pinterestUrl:'', plan:'free', autoOn:false, autoTime:'08:00', autoNiche:'Cozy home decor', articles:0, pins:0, log:[], latest:''};
+let state = {profileName:'', blogger:false, bloggerBlogId:'', bloggerBlogName:'', bloggerLocked:false, pinterest:false, pinterestName:'', pinterestUrl:'', plan:'free', autoOn:false, autoTime:'08:00', autoNiche:'Cozy home decor', articles:0, pins:0, log:[], latest:''};
 try { const s = JSON.parse(localStorage.getItem(KEY) || '{}'); state = {...state, ...s}; } catch(e) {}
 function save(){ localStorage.setItem(KEY, JSON.stringify(state)); }
 function toast(msg){ const t=$('toast'); t.textContent=msg; t.style.display='block'; clearTimeout(t._h); t._h=setTimeout(()=>t.style.display='none', 5000); }
@@ -68,6 +72,11 @@ function slugify(s){ return s.toLowerCase().replace(/[^a-z0-9]+/g,'-').replace(/
 // Connections and Auto Flow need a login or guest mode.
 const PROTECTED_PAGES = ['dashboard','writer','pins','connections','autoflow'];
 function go(page){
+  // Profile is login-only (guests are not allowed — it is per-account data).
+  if(page === 'profile' && !isAuthed()){
+    toast('Please log in to view your profile.');
+    page = 'login';
+  }
   if(PROTECTED_PAGES.includes(page) && !isAuthed() && !isGuest()){
     page = 'login';
     toast('Please log in first — it takes 10 seconds. Or continue as guest (demo).');
@@ -78,8 +87,60 @@ function go(page){
   if(page==='dashboard') renderDashboard();
   if(page==='autoflow') loadAutoFlow();
   if(page==='connections' && state.blogger) loadBlogPicker();
+  if(page==='profile') loadProfilePage();
   renderAuthUI();
   window.scrollTo({top:0, behavior:'smooth'});
+}
+
+// ---------- Profile (per-account: name, address, contact number) ----------
+// Loads the caller's own profile from the server and keeps the header name fresh.
+async function loadProfile(){
+  if(!isAuthed()) return null;
+  try{
+    const p = await api('/api/profile');
+    state.profileName = p.name || '';
+    save(); renderAuthUI();
+    return p;
+  }catch(e){ return null; }
+}
+async function loadProfilePage(){
+  if(!isAuthed()){ toast('Please log in to view your profile.'); go('login'); return; }
+  const p = await loadProfile();
+  if(!p){ toast('Could not load your profile.'); return; }
+  $('profileName').value = p.name || '';
+  $('profileEmail').value = p.email || '';
+  $('profileAddress').value = p.address || '';
+  $('profilePhone').value = p.phone || '';
+  $('profileHeadName').textContent = p.name || p.email || '—';
+  $('profileHeadEmail').textContent = p.email || '—';
+  $('profileAvatar').textContent = ((p.name || p.email || 'B').trim().charAt(0) || 'B').toUpperCase();
+  const plan = (p.plan || 'free');
+  const pb = $('profilePlan');
+  pb.textContent = plan.charAt(0).toUpperCase() + plan.slice(1);
+  pb.className = 'badge ' + (plan === 'pro' ? 'on' : 'off');
+  $('profileSince').textContent = p.created_at ? ('Member since ' + new Date(p.created_at).toLocaleDateString('en-GB', {day:'2-digit', month:'short', year:'numeric'})) : '';
+  $('profileError').style.display = 'none';
+}
+async function saveProfile(){
+  const btn = $('profileSaveBtn'), err = $('profileError');
+  const name = $('profileName').value.trim();
+  const address = $('profileAddress').value.trim();
+  const phone = $('profilePhone').value.trim();
+  if(!name){ err.textContent = 'Please enter your name.'; err.style.display = ''; return; }
+  btn.disabled = true; btn.textContent = 'Saving…';
+  try{
+    const p = await api('/api/profile', {method:'POST', body: JSON.stringify({name, address, phone})});
+    state.profileName = p.name || '';
+    save(); renderAuthUI();
+    $('profileHeadName').textContent = p.name || p.email || '—';
+    $('profileAvatar').textContent = ((p.name || p.email || 'B').trim().charAt(0) || 'B').toUpperCase();
+    err.style.display = 'none';
+    toast('Profile saved.');
+  }catch(e){
+    err.textContent = e.message || 'Could not save your profile.';
+    err.style.display = '';
+  }
+  btn.disabled = false; btn.textContent = 'Save Profile';
 }
 
 // ---------- Fast login ----------
@@ -116,7 +177,10 @@ async function submitAuth(){
       const r = await api('/api/auth/login', {method:'POST', body: JSON.stringify({email, password})});
       setSession(r.token, r.email, remember);
       localStorage.removeItem(GUEST_KEY);
+      state.profileName = r.name || '';
+      save();
       renderAuthUI(); refreshStatus();
+      loadProfile();
       toast('Welcome back, ' + r.email + '!');
       log('Logged in: ' + r.email);
       go('dashboard');
@@ -154,6 +218,8 @@ function continueAsGuest(){
 async function logout(){
   try{ await api('/api/auth/logout', {method:'POST', body: '{}'}); }catch(e){ /* session already gone */ }
   clearSession();
+  state.profileName = '';
+  save();
   renderAuthUI();
   toast('Logged out.');
   go('login');
@@ -167,7 +233,10 @@ async function submitVerify(){
     const r = await api('/api/auth/verify', {method:'POST', body: JSON.stringify({email: pendingVerifyEmail, code})});
     setSession(r.token, r.email, true);
     localStorage.removeItem(GUEST_KEY);
+    state.profileName = r.name || '';
+    save();
     renderAuthUI(); refreshStatus();
+    loadProfile();
     toast('Email verified — welcome to BlogNeo, ' + r.email + '!');
     log('Email verified: ' + r.email);
     go('dashboard');
@@ -526,6 +595,8 @@ async function initAuth(){
     try{
       const me = await api('/api/auth/me');
       state.plan = me.plan || state.plan;
+      state.profileName = me.name || '';
+      save();
       renderAuthUI();
       refreshStatus(); loadAutoFlow(); renderBadges(); renderDashboard(); renderAuto(); renderLog();
       go('dashboard');
