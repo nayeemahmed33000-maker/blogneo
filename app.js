@@ -340,6 +340,7 @@ function makeCanvas(w,h){ const c=document.createElement('canvas'); c.width=w; c
 let currentArticle='';
 let currentArticleMeta = null; // {title, slug, meta_description, image}
 let currentPinImage = null; // base64 of the AI image generated for the pins (flux, /api/generate-image)
+let currentPinImages = []; // one DIFFERENT AI image per pin (3 pins = 3 photos)
 function articleTextFor(topic){
   const t=topic.trim()||'Cozy home decor';
   const slug=slugify(t);
@@ -440,18 +441,25 @@ async function generatePins(){
   }catch(e){ seo=pinSeoFor(topic); $('pinTitle').textContent=seo.title; $('pinDesc').textContent=seo.desc; $('pinTags').textContent=seo.tags; }
   if(!$('pinTitle').textContent){ $('pinTitle').textContent=seo.title; $('pinDesc').textContent=seo.desc; $('pinTags').textContent=seo.tags; }
   toast('3 pins generated for "'+topic+'"'+sourceLabel+'.'); log('Pins generated: '+topic+sourceLabel);
-  // Real AI image for the pins (flux via /api/generate-image). The canvas
-  // placeholders above stay visible until the AI image arrives, so a slow
-  // or failed image call never breaks pin generation. The photo is drawn
-  // full-bleed onto each pin canvas with the headline re-drawn on top,
-  // and publishPins() sends this image (not the article cover).
+  // Real AI images for the pins (flux via /api/generate-image) — one
+  // DIFFERENT photo per pin, so the 3 pins never share the same image.
+  // The canvas placeholders above stay visible until each AI image
+  // arrives, so a slow or failed image call never breaks pin generation.
+  // publishPins() sends the first pin's image (not the article cover).
+  const pinAngles = ['warm lighting and soft textures',
+    'smart storage and cozy fabrics', 'reading nook by the window'];
   try{
-    const im = await api('/api/generate-image', {method:'POST', body: JSON.stringify({topic})});
-    if(im && im.image_base64){
-      currentPinImage = im.image_base64;
-      const img = new Image();
-      img.onload = ()=>{
-        document.querySelectorAll('#pinDesigns .pin-canvas').forEach((c)=>{
+    const results = await Promise.all(pinAngles.map((a)=>
+      api('/api/generate-image', {method:'POST', body: JSON.stringify({topic: topic + ', ' + a})}).catch(()=>null)));
+    const good = results.filter((im)=> im && im.image_base64);
+    if(good.length){
+      currentPinImages = good.map((im)=> im.image_base64);
+      currentPinImage = currentPinImages[0];
+      const canvases = document.querySelectorAll('#pinDesigns .pin-canvas');
+      good.forEach((im, i)=>{
+        const img = new Image();
+        img.onload = ()=>{
+          const c = canvases[i]; if(!c) return;
           const ctx = c.getContext('2d');
           const s = Math.max(c.width / img.width, c.height / img.height);
           const dw = img.width * s, dh = img.height * s;
@@ -463,11 +471,11 @@ async function generatePins(){
           ctx.textAlign = 'left'; ctx.fillText('BLOGNEO  •  GENERATED IMAGE', 28, 44);
           ctx.fillStyle = '#fff'; ctx.font = 'bold ' + Math.round(c.width * 0.055) + 'px Arial';
           wrapText(ctx, topic, 28, c.height * 0.42, c.width - 56, Math.round(c.width * 0.07));
-        });
-        document.querySelectorAll('#pinDesigns p.small').forEach((p)=>{ p.textContent = p.textContent.replace('1000 × 1500', 'AI image 1000 × 1500'); });
-        toast('AI pin image ready for "'+topic+'".');
-      };
-      img.src = 'data:' + (im.image_content_type || 'image/jpeg') + ';base64,' + im.image_base64;
+        };
+        img.src = 'data:' + (im.image_content_type || 'image/jpeg') + ';base64,' + im.image_base64;
+      });
+      document.querySelectorAll('#pinDesigns p.small').forEach((p)=>{ p.textContent = p.textContent.replace('1000 × 1500', 'AI image 1000 × 1500'); });
+      toast(good.length + ' different AI pin images ready for "'+topic+'".');
     }
   }catch(e){ /* keep the canvas placeholders */ }
 }
