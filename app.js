@@ -105,6 +105,14 @@ async function loadProfile(){
 }
 async function loadProfilePage(){
   if(!isAuthed()){ toast('Please log in to view your profile.'); go('login'); return; }
+  // Prefill instantly from what login already knows, so the page never
+  // flashes a blank/"B" avatar while the profile loads — fresh values overwrite below.
+  const cachedName = state.profileName || '', cachedEmail = getEmail();
+  $('profileName').value = cachedName;
+  $('profileEmail').value = cachedEmail;
+  $('profileHeadName').textContent = cachedName || cachedEmail || '—';
+  $('profileHeadEmail').textContent = cachedEmail || '—';
+  $('profileAvatar').textContent = ((cachedName || cachedEmail || 'B').trim().charAt(0) || 'B').toUpperCase();
   const p = await loadProfile();
   if(!p){ toast('Could not load your profile.'); return; }
   $('profileName').value = p.name || '';
