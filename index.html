@@ -257,7 +257,7 @@
   <div class="grid g2">
     <div class="card"><h3><svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="10"/><line x1="2" y1="12" x2="22" y2="12"/><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/></svg>Blogger</h3><p>Status: <span class="badge off" id="badgeBlogger">Not connected</span></p>
       <p class="small muted">Connect your Blogger blog so articles can publish automatically. Connection state comes from the BlogNeo server — no manual marking.</p>
-      <div class="row"><button class="btn small" onclick="connectBlogger()">Connect Blogger</button></div>
+      <div class="row"><button class="btn small" id="btnConnectBlogger" onclick="connectBlogger()">Connect Blogger</button></div>
       <div id="blogList" style="margin-top:10px"></div>
       <div id="blogPicker" style="display:none; margin-top:10px">
         <label for="blogSelect">Add a blog</label>
@@ -269,9 +269,10 @@
     <div class="card"><h3><svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 10c0 7-9 12-9 12s-9-5-9-12a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/></svg>Pinterest</h3><p>Status: <span class="badge off" id="badgePinterest">Not connected</span></p>
       <p class="small muted" id="pinterestAccountLine" style="display:none">Account: <b id="pinterestAccountName"></b></p>
       <p class="small muted">Connect Pinterest so pins can publish automatically. Connection state comes from the BlogNeo server — no manual marking.</p>
-      <div class="row"><button class="btn small" onclick="connectPinterest()">Connect Pinterest</button></div>
+      <div class="row"><button class="btn small" id="btnConnectPinterest" onclick="connectPinterest()">Connect Pinterest</button></div>
       <div id="pinAccountList" style="margin-top:10px"></div>
       <p class="small muted" id="pinLimitNote"></p>
+      <button class="btn small ghost" id="btnAddPinterest" style="display:none;margin-top:8px" onclick="connectPinterest()">Connect another account</button>
       <button class="btn small ghost" onclick="disconnect('pinterest')" style="margin-top:8px">Disconnect</button></div>
   </div>
   <details><summary>What happens when I click Connect?</summary>
