@@ -53,7 +53,7 @@ function renderAuthUI(){
   const gb = $('guestBanner');
   if (gb) gb.style.display = (!authed && isGuest()) ? '' : 'none';
 }
-let state = {profileName:'', blogger:false, bloggerBlogId:'', bloggerBlogName:'', bloggerLocked:false, pinterest:false, pinterestName:'', pinterestUrl:'', plan:'free', autoOn:false, autoTime:'08:00', autoNiche:'Cozy home decor', articles:0, pins:0, log:[], latest:'', blogs:[], pinterestAccounts:[], usage:null, limits:null, boardsByAccount:{}, writerBlogId:'', pinAccount:'', autoAccount:'', autoBlogId:'', autoBoardWant:''};
+let state = {profileName:'', blogger:false, bloggerBlogId:'', bloggerBlogName:'', bloggerLocked:false, pinterest:false, pinterestName:'', pinterestUrl:'', plan:'free', autoOn:false, autoTime:'08:00', autoNiche:'Cozy home decor', articles:0, pins:0, log:[], latest:'', blogs:[], pinterestAccounts:[], usage:null, limits:null, boardsByAccount:{}, writerBlogId:'', pinAccount:'', autoAccount:'', autoBlogId:'', autoBoardWant:'', adsRange:30, hasAdsterraToken:false};
 try { const s = JSON.parse(localStorage.getItem(KEY) || '{}'); state = {...state, ...s}; } catch(e) {}
 function save(){ localStorage.setItem(KEY, JSON.stringify(state)); }
 function toast(msg){ const t=$('toast'); t.textContent=msg; t.style.display='block'; clearTimeout(t._h); t._h=setTimeout(()=>t.style.display='none', 5000); }
@@ -84,9 +84,9 @@ function go(page){
   document.querySelectorAll('.page').forEach(p=>p.classList.remove('active'));
   const el=$('page-'+page); if(el) el.classList.add('active');
   document.querySelectorAll('#nav button').forEach(b=>b.classList.toggle('active', b.dataset.page===page));
-  if(page==='dashboard') renderDashboard();
+  if(page==='dashboard'){ renderDashboard(); loadAdStats(state.adsRange||30); }
   if(page==='autoflow') loadAutoFlow();
-  if(page==='connections'){ if(state.blogger) loadBlogPicker(); loadPinAccounts(); }
+  if(page==='connections'){ if(state.blogger) loadBlogPicker(); loadPinAccounts(); loadAdsStatus(); }
   if(page==='profile') loadProfilePage();
   renderAuthUI();
   window.scrollTo({top:0, behavior:'smooth'});
@@ -485,6 +485,119 @@ async function disconnect(which){
   toast((which==='blogger'?'Blogger':'Pinterest')+' disconnected.');
   log((which==='blogger'?'Blogger':'Pinterest')+' disconnected.');
 }
+
+// ---------- Adsterra earnings (per-customer API token + stats, all plans) ----------
+// The token is saved encrypted on the server and never shown back — the
+// frontend only ever learns "has_api_token". Stats are cached on the
+// server for 1 hour, so Refresh within the hour shows the cached numbers.
+let adStats = null, adStatsLoading = false;
+function showAdsMsg(msg){
+  const m = $('adsMsg'); if(!m) return;
+  if(!msg){ m.style.display='none'; m.textContent=''; return; }
+  m.textContent = msg; m.style.display='';
+}
+function renderAdsCard(){
+  const badge = $('badgeAdsterra');
+  if(badge){ badge.textContent = state.hasAdsterraToken ? 'Connected' : 'Not connected'; badge.className = 'badge ' + (state.hasAdsterraToken ? 'on' : 'off'); }
+  const saved = $('adsTokenSaved'); if(saved) saved.style.display = state.hasAdsterraToken ? '' : 'none';
+  const rm = $('adsRemoveBtn'); if(rm) rm.style.display = state.hasAdsterraToken ? '' : 'none';
+  const sb = $('adsSaveBtn'); if(sb) sb.textContent = state.hasAdsterraToken ? 'Save New Token' : 'Save Token';
+}
+async function loadAdsStatus(){
+  try{
+    const r = await api('/api/ads');
+    state.hasAdsterraToken = !!r.has_api_token;
+    save(); renderAdsCard();
+  }catch(e){ /* backend unreachable — keep local state */ }
+}
+async function saveAdsterraToken(){
+  const v = $('adsToken').value.trim();
+  if(!v){ showAdsMsg('Paste your Adsterra API token first.'); return; }
+  const btn = $('adsSaveBtn'); if(btn){ btn.disabled = true; btn.textContent = 'Saving…'; }
+  try{
+    const r = await api('/api/ads', {method:'POST', body: JSON.stringify({api_token: v})});
+    $('adsToken').value = '';
+    state.hasAdsterraToken = !!r.has_api_token;
+    save(); renderAdsCard();
+    showAdsMsg('Adsterra token saved. Your earnings will appear on the Dashboard.');
+    toast('Adsterra token saved.');
+    log('Adsterra token saved.');
+    adStats = null; loadAdStats(state.adsRange||30);
+  }catch(e){
+    showAdsMsg(e.message || 'Could not save the token.');
+  }finally{
+    if(btn){ btn.disabled = false; btn.textContent = state.hasAdsterraToken ? 'Save New Token' : 'Save Token'; }
+  }
+}
+async function removeAdsterraToken(){
+  try{
+    await api('/api/ads', {method:'POST', body: JSON.stringify({api_token: ''})});
+    state.hasAdsterraToken = false;
+    adStats = null;
+    save(); renderAdsCard(); renderAdStats();
+    showAdsMsg('Adsterra token removed. Earnings will no longer show on the Dashboard.');
+    toast('Adsterra token removed.');
+    log('Adsterra token removed.');
+  }catch(e){
+    showAdsMsg(e.message || 'Could not remove the token.');
+  }
+}
+function setAdsRange(r){
+  state.adsRange = r; save();
+  loadAdStats(r);
+}
+async function loadAdStats(range){
+  if(adStatsLoading) return;
+  const r = range === 7 ? 7 : 30;
+  adStatsLoading = true;
+  renderAdStats();
+  try{
+    const d = await api('/api/ads/stats?range=' + r);
+    adStats = d;
+  }catch(e){
+    adStats = { configured: true, range: r, error: 'provider_error', message: 'Could not load Adsterra stats right now. Please try again later.' };
+  }finally{
+    adStatsLoading = false;
+    renderAdStats();
+  }
+}
+function renderAdStats(){
+  const body = $('adsBody'); if(!body) return;
+  const r7 = $('adsRange7'), r30 = $('adsRange30');
+  if(r7) r7.classList.toggle('chosen', (state.adsRange||30) === 7);
+  if(r30) r30.classList.toggle('chosen', (state.adsRange||30) !== 7);
+  if(adStatsLoading && !adStats){ body.innerHTML = '<p class="muted">Loading Adsterra stats…</p>'; return; }
+  if(!adStats || adStats.configured === false){
+    body.innerHTML = '<div class="ads-empty">Connect your Adsterra API token in Connections to see your earnings here.<br><button class="btn small" style="margin-top:10px" onclick="go(\'connections\')">Open Connections</button></div>';
+    return;
+  }
+  if(adStats.error){
+    body.innerHTML = '<div class="ads-empty">' + esc(adStats.message || 'Could not load Adsterra stats right now.') + '<br><button class="btn small" style="margin-top:10px" onclick="go(\'connections\')">Check Token in Connections</button></div>';
+    return;
+  }
+  const t = adStats.totals || {impressions:0, clicks:0, revenue:0, cpm:0, ctr:0};
+  const range = adStats.range || state.adsRange || 30;
+  if(t.impressions === 0 && t.revenue === 0){
+    body.innerHTML = '<div class="ads-empty">No earnings yet — publish posts with your Adsterra ads and drive traffic.</div>';
+    return;
+  }
+  const days = adStats.days || [];
+  const max = Math.max(0.01, ...days.map(d => d.revenue || 0));
+  const bars = days.map(d => '<div class="ads-bar" title="' + esc(d.date) + ' · $' + (d.revenue||0).toFixed(2) + '"><i style="height:' + Math.max(2, Math.round((d.revenue||0)/max*100)) + '%"></i></div>').join('');
+  const money = n => '$' + (n||0).toFixed(2);
+  body.innerHTML =
+    '<div class="ads-nums">'
+    + '<div><small>Revenue · today</small><b>' + money(adStats.today_revenue) + '</b></div>'
+    + '<div><small>Revenue · ' + range + ' days</small><b>' + money(t.revenue) + '</b></div>'
+    + '<div><small>Impressions</small><b>' + (t.impressions||0).toLocaleString() + '</b></div>'
+    + '<div><small>Clicks</small><b>' + (t.clicks||0).toLocaleString() + '</b></div>'
+    + '<div><small>CPM</small><b>' + money(t.cpm) + '</b></div>'
+    + '<div><small>CTR</small><b>' + (t.ctr||0).toFixed(2) + '%</b></div>'
+    + '</div>'
+    + '<div class="ads-bars">' + bars + '</div>'
+    + '<div class="ads-bars-foot"><span>' + esc(days[0] ? days[0].date : '') + '</span><span>Daily revenue · USD' + (adStats.cached ? ' · cached' : '') + '</span><span>' + esc(days.length ? days[days.length-1].date : '') + '</span></div>';
+}
+
 // ---------- Blog picker (Free = 1 blog, Pro = up to 5) ----------
 async function loadBlogPicker(){
   const wrap = $('blogPicker'); if(!wrap) return;
