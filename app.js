@@ -49,7 +49,7 @@ function renderAuthUI(){
   const gb = $('guestBanner');
   if (gb) gb.style.display = (!authed && isGuest()) ? '' : 'none';
 }
-let state = {blogger:false, bloggerBlogId:'', bloggerBlogName:'', bloggerLocked:false, pinterest:false, plan:'free', autoOn:false, autoTime:'08:00', autoNiche:'Cozy home decor', articles:0, pins:0, log:[], latest:''};
+let state = {blogger:false, bloggerBlogId:'', bloggerBlogName:'', bloggerLocked:false, pinterest:false, pinterestName:'', pinterestUrl:'', plan:'free', autoOn:false, autoTime:'08:00', autoNiche:'Cozy home decor', articles:0, pins:0, log:[], latest:''};
 try { const s = JSON.parse(localStorage.getItem(KEY) || '{}'); state = {...state, ...s}; } catch(e) {}
 function save(){ localStorage.setItem(KEY, JSON.stringify(state)); }
 function toast(msg){ const t=$('toast'); t.textContent=msg; t.style.display='block'; clearTimeout(t._h); t._h=setTimeout(()=>t.style.display='none', 5000); }
@@ -194,6 +194,8 @@ async function refreshStatus(){
     state.bloggerBlogId = (s.blogger && s.blogger.blog_id) || '';
     state.bloggerBlogName = (s.blogger && s.blogger.blog_name) || '';
     state.pinterest = !!(s.pinterest && s.pinterest.status === 'connected');
+    state.pinterestName = (s.pinterest && s.pinterest.blog_name) || '';
+    state.pinterestUrl = (s.pinterest && s.pinterest.blog_url) || '';
     state.articles = (s.counts && s.counts.articles) || 0;
     if(s.auto){ state.autoOn = !!s.auto.auto_on; state.autoTime = s.auto.run_time || '08:00'; state.autoNiche = s.auto.niche || state.autoNiche; }
     if(s.runs && s.runs.length){
@@ -207,7 +209,7 @@ function renderDashboard(){
   $('statArticles').textContent = state.articles;
   $('statPins').textContent = state.pins;
   $('statBlogger').textContent = state.blogger ? (state.bloggerBlogName ? 'Connected — ' + state.bloggerBlogName : 'Connected — no blog selected') : 'Not connected';
-  $('statPinterest').textContent = state.pinterest ? 'Connected' : 'Not connected';
+  $('statPinterest').textContent = state.pinterest ? (state.pinterestName ? 'Connected — ' + state.pinterestName : 'Connected') : 'Not connected';
   $('dashAuto').textContent = state.autoOn ? 'ON — runs daily at '+state.autoTime+' for niche "'+state.autoNiche+'".' : 'Off — turn it on in Daily Auto Flow.';
   $('dashPlan').textContent = state.plan==='pro' ? 'Pro plan — daily auto flow unlocked.' : state.plan==='pro-pending' ? 'Pro — payment pending (activation within 24h after confirmation).' : 'Free plan — 1 blog, 3 articles/month, manual pins.';
   $('dashLatest').textContent = state.latest || 'No article yet. Generate one in Article Writer.';
@@ -217,6 +219,8 @@ function renderBadges(){
   const bB=$('badgeBlogger'), bP=$('badgePinterest');
   if(bB){ bB.textContent = state.blogger?'Connected':'Not connected'; bB.className='badge '+(state.blogger?'on':'off'); }
   if(bP){ bP.textContent = state.pinterest?'Connected':'Not connected'; bP.className='badge '+(state.pinterest?'on':'off'); }
+  const pa=$('pinterestAccountLine'), pan=$('pinterestAccountName');
+  if(pa){ if(state.pinterest && state.pinterestName){ pa.style.display=''; pan.textContent = state.pinterestName; } else pa.style.display='none'; }
   const pb=$('planBadge');
   if(pb){ pb.textContent = state.plan==='pro'?'Pro':state.plan==='pro-pending'?'Pro — Pending':'Free'; pb.className='badge '+(state.plan==='pro'?'on':'off'); }
   if($('planNote')) $('planNote').textContent = state.plan==='pro-pending' ? 'Payment sent — Pro activates within 24h after confirmation.' : '';
