@@ -1,4 +1,4 @@
-// BlogNeo v2 — frontend wired to the real backend API.
+// BlogNeo — frontend wired to the real backend API.
 // API: https://blogneo-api.nayeemahmed33000.workers.dev (Cloudflare Worker:
 // Workers AI article + image, D1 storage, Blogger/Pinterest OAuth, cron).
 // Identity: one random device UUID per browser (X-BlogNeo-Device header).
@@ -137,8 +137,8 @@ async function loginWithGoogle(){
   try{
     const s = await api('/api/auth/google/status');
     if(!s.configured){
-      toast('Google sign-in is not configured yet. The owner still has to add the Google Client ID and Secret on the BlogNeo server. Please log in with email instead.');
-      $('googleNote').textContent = 'Google sign-in is not configured yet — use email login below.';
+      toast('Google sign-in is not available right now. Please log in with email instead.');
+      $('googleNote').textContent = 'Google sign-in is not available right now — use email login below.';
       return;
     }
     location.href = s.auth_url;
@@ -405,7 +405,7 @@ async function loadBlogPicker(){
     sel.disabled = locked;
     const saveBtn = $('blogSaveBtn'); if(saveBtn) saveBtn.disabled = locked;
     $('blogLockNote').textContent = locked
-      ? '🔒 Locked — Free plan allows 1 blog. Upgrade to Pro to change.'
+      ? 'Locked — Free plan allows 1 blog. Upgrade to Pro to change.'
       : isPro ? 'Pro plan — you can change your blog anytime.'
       : 'Pick your one blog — Free plan locks your choice after you save it.';
     save();
@@ -428,6 +428,35 @@ async function selectBlog(){
   }
 }
 // ---------- Daily Auto Flow (backend settings + real runs) ----------
+const PIN_BOARDS = ['Home Decor Ideas', 'Bedroom Ideas', 'Cozy Living', 'DIY Home', 'My Blog Posts'];
+// Auto Flow targets are real, never stale: the blog select shows only the
+// connected blog (or a disabled "Connect Blogger first"), and the board
+// select always lists the same 5 boards as the Pin Generator.
+function renderAutoTargets(){
+  const blog = $('autoBlog');
+  if(blog){
+    blog.innerHTML = '';
+    if(state.blogger && state.bloggerBlogName){
+      const o = document.createElement('option');
+      o.value = state.bloggerBlogId || state.bloggerBlogName;
+      o.textContent = state.bloggerBlogName;
+      blog.appendChild(o);
+      blog.disabled = false;
+    } else {
+      const o = document.createElement('option');
+      o.value = ''; o.textContent = 'Connect Blogger first'; o.disabled = true;
+      blog.appendChild(o);
+      blog.disabled = true;
+    }
+  }
+  const board = $('autoBoard');
+  if(board){
+    const prev = board.value;
+    board.innerHTML = '';
+    PIN_BOARDS.forEach(b => { const o = document.createElement('option'); o.value = b; o.textContent = b; board.appendChild(o); });
+    if(prev && PIN_BOARDS.includes(prev)) board.value = prev;
+  }
+}
 async function loadAutoFlow(){
   try{
     const s = await api('/api/status');
@@ -448,6 +477,7 @@ async function toggleAuto(){
   log('Auto Flow '+(state.autoOn?'turned ON — daily '+state.autoTime+' — niche: '+state.autoNiche:'turned OFF.'));
 }
 function renderAuto(){
+  renderAutoTargets();
   $('autoToggle').checked=state.autoOn;
   $('autoTime').value=state.autoTime; $('autoNiche').value=state.autoNiche;
   $('autoState').textContent = state.autoOn ? 'Auto Flow is ON' : 'Auto Flow is OFF';
