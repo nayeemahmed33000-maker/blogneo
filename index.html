@@ -37,7 +37,10 @@
       <button data-page="subscription">Subscription</button>
     </nav>
     <div class="auth-area" id="authArea">
-      <span class="auth-email" id="authEmail" style="display:none"></span>
+      <button class="profile-btn" id="authProfileBtn" style="display:none" onclick="go('profile')" title="Your profile">
+        <span class="avatar" id="authAvatar">B</span>
+        <span class="auth-email" id="authEmail"></span>
+      </button>
       <button class="btn small" id="btnLoginNav" onclick="go('login')">Login</button>
       <button class="btn small ghost" id="btnLogoutNav" style="display:none" onclick="logout()">Logout</button>
     </div>
@@ -87,6 +90,37 @@
       <button class="btn ghost small" onclick="go('login')">Back to Login</button>
     </div>
     <p class="small muted" id="verifyNote">3 attempts max per code. Didn't get it? Check spam, then tap Resend.</p>
+  </div>
+</section>
+
+<!-- PROFILE -->
+<section class="page" id="page-profile">
+  <div class="profile-card">
+    <h2>Your Profile</h2>
+    <p class="muted">Your name, address and contact number — shown only to you.</p>
+    <div class="profile-head">
+      <span class="avatar big" id="profileAvatar">B</span>
+      <div>
+        <div class="profile-head-name" id="profileHeadName">—</div>
+        <div class="small muted" id="profileHeadEmail">—</div>
+      </div>
+      <span class="badge off" id="profilePlan">Free</span>
+    </div>
+    <label for="profileName">Name</label>
+    <input id="profileName" placeholder="Your name" autocomplete="name" maxlength="100">
+    <label for="profileEmail">Email</label>
+    <input id="profileEmail" type="email" disabled>
+    <p class="small muted">Your email cannot be changed — it is your login identity.</p>
+    <label for="profileAddress">Address</label>
+    <textarea id="profileAddress" placeholder="Your address" maxlength="500"></textarea>
+    <label for="profilePhone">Contact Number</label>
+    <input id="profilePhone" type="tel" placeholder="+880 1XXX-XXXXXX" autocomplete="tel" maxlength="20">
+    <p class="small" id="profileError" style="color:#c0392b;display:none"></p>
+    <div class="row" style="margin-top:16px">
+      <button class="btn" id="profileSaveBtn" onclick="saveProfile()">Save Profile</button>
+      <button class="btn ghost" onclick="go('dashboard')">Back to Dashboard</button>
+    </div>
+    <p class="small muted" id="profileSince" style="margin-top:14px"></p>
   </div>
 </section>
 
